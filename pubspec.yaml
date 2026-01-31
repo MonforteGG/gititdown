@@ -1,0 +1,57 @@
+name: gititdown
+description: A multi-platform notes app using GitHub as backend
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  # State Management
+  flutter_riverpod: ^2.4.9
+  # Networking
+  dio: ^5.4.0
+  # UI & Markdown
+  flutter_markdown: ^0.6.14
+  google_fonts: ^6.1.0
+  # Security
+  flutter_secure_storage: ^9.0.0
+  # Utils
+  uuid: ^4.2.1
+  intl: ^0.19.0
+  # Functional programming
+  dartz: ^0.10.1
+  # Equatable for value equality
+  equatable: ^2.0.5
+  # Path utilities
+  path: ^1.8.3
+  # URL launching
+  url_launcher: ^6.2.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.1
+  mockito: ^5.4.4
+  build_runner: ^2.4.8
+
+flutter:
+  uses-material-design: true
+  
+  # Enable platform-specific implementations
+  plugin:
+    platforms:
+      android:
+        package: com.example.gititdown
+        pluginClass: GitItDownPlugin
+      ios:
+        pluginClass: GitItDownPlugin
+      macos:
+        pluginClass: GitItDownPlugin
+      windows:
+        pluginClass: GitItDownPluginCApi
+      linux:
+        pluginClass: GitItDownPlugin
