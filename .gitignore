@@ -95,3 +95,42 @@ coverage/
 !**/ios/**/default.mode2v3
 !**/ios/**/default.pbxuser
 !**/ios/**/default.perspectivev3
+
+# === Claude AI ===
+.claude/
+.agents/
+.skills/
+.mcp_config/
+MCP_CONFIG.json
+CLAUDE.md
+
+# === Secrets ===
+.env
+.env.local
+.env.*.local
+*.keystore
+jks/
+secrets/
+*.pem
+*.p12
+*.crt
+
+# === OS ===
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# === Firebase ===
+google-services.json
+ios/Runner/GoogleService-Info.plist
+
+# === Misc ===
+*.log
+*.bak
+*.tmp
+.temp/
+temp/

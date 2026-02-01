@@ -14,16 +14,16 @@ void main() {
   );
 }
 
-class GitItDownApp extends StatelessWidget {
+class GitItDownApp extends ConsumerWidget {
   const GitItDownApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return MaterialApp(
       title: 'GitItDown',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
-      darkTheme: AppTheme.darkTheme,
+      themeMode: ThemeMode.light,
       home: const AuthWrapper(),
     );
   }
