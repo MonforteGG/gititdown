@@ -216,6 +216,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           child: Image.asset(
             'lib/assets/logo.png',
             fit: BoxFit.contain,
+            filterQuality: FilterQuality.medium,
           ),
         ),
         const SizedBox(height: 24),

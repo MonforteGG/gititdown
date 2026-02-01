@@ -261,6 +261,7 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
               'lib/assets/logo.png',
               width: 40,
               height: 40,
+              filterQuality: FilterQuality.medium,
             ),
             const SizedBox(width: 10),
             Text(
@@ -280,7 +281,7 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
       ),
       actions: [
         IconButton(
-          icon: const Icon(Icons.add_rounded),
+          icon: Icon(Icons.add_rounded, color: AppTheme.brandOrange),
           tooltip: 'New Note',
           onPressed: _createNewNote,
         ),

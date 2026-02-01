@@ -4,7 +4,6 @@ import '../../core/utils/usecase.dart';
 import '../../domain/entities/note.dart';
 import '../../domain/usecases/delete_note.dart';
 import '../../domain/usecases/get_note.dart';
-import '../../domain/usecases/get_notes.dart';
 import '../../domain/usecases/save_note.dart';
 import 'dependency_providers.dart';
 

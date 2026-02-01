@@ -4,7 +4,6 @@ import '../../core/utils/base64_utils.dart';
 import '../../domain/entities/note.dart';
 import '../../domain/repositories/github_repository.dart';
 import '../datasources/github_remote_datasource.dart';
-import '../models/github_file_model.dart';
 
 class GitHubRepositoryImpl implements IGitHubRepository {
   final IGitHubRemoteDataSource _remoteDataSource;

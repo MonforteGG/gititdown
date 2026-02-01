@@ -1,19 +1,19 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import '../data/datasources/github_remote_datasource.dart';
-import '../data/datasources/secure_storage_local_datasource.dart';
-import '../data/repositories/github_repository_impl.dart';
-import '../data/repositories/local_storage_repository_impl.dart';
-import '../domain/entities/user_config.dart';
-import '../domain/repositories/github_repository.dart';
-import '../domain/repositories/local_storage_repository.dart';
-import '../domain/usecases/delete_note.dart';
-import '../domain/usecases/get_note.dart';
-import '../domain/usecases/get_notes.dart';
-import '../domain/usecases/login.dart';
-import '../domain/usecases/logout.dart';
-import '../domain/usecases/save_note.dart';
+import '../../data/datasources/github_remote_datasource.dart';
+import '../../data/datasources/secure_storage_local_datasource.dart';
+import '../../data/repositories/github_repository_impl.dart';
+import '../../data/repositories/local_storage_repository_impl.dart';
+import '../../domain/entities/user_config.dart';
+import '../../domain/repositories/github_repository.dart';
+import '../../domain/repositories/local_storage_repository.dart';
+import '../../domain/usecases/delete_note.dart';
+import '../../domain/usecases/get_note.dart';
+import '../../domain/usecases/get_notes.dart';
+import '../../domain/usecases/login.dart';
+import '../../domain/usecases/logout.dart';
+import '../../domain/usecases/save_note.dart';
 
 // ==================== EXTERNAL DEPENDENCIES ====================
 

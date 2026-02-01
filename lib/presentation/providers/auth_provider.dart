@@ -3,7 +3,6 @@ import '../../core/error/failures.dart';
 import '../../core/utils/usecase.dart';
 import '../../domain/entities/user_config.dart';
 import '../../domain/usecases/login.dart';
-import '../../domain/usecases/logout.dart';
 import 'dependency_providers.dart';
 
 // Auth State

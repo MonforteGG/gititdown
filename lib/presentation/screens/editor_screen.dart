@@ -7,6 +7,7 @@ import '../../config/theme.dart';
 import '../../core/error/failures.dart';
 import '../../domain/entities/note.dart';
 import '../../presentation/providers/notes_provider.dart';
+import '../widgets/github_footer.dart';
 import '../widgets/notebook_background.dart';
 
 // Font fallback for characters not covered by primary fonts
@@ -207,6 +208,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
       _showSuccessSnackbar('Note saved');
       setState(() {
         _hasChanges = false;
+        _loadedNote = ref.read(notesProvider).selectedNote;
       });
       if (widget.note == null) {
         Navigator.of(context).pop();
@@ -254,6 +256,12 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                 ),
               ),
             ),
+            // GitHub Footer
+            const Positioned(
+              bottom: 16,
+              right: 16,
+              child: GitHubFooter(),
+            ),
             // Notebook page
             SafeArea(
               child: NotebookPage(
@@ -271,8 +279,8 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                             ? _buildLoadingState()
                             : Column(
                                 children: [
-                                  // Name Field
-                                  if (widget.note == null || _mode == EditorMode.edit)
+                                   // Name Field
+                                   if (widget.note == null && _mode == EditorMode.edit)
                                     _buildNameField(context, isSaving),
                                   // Editor/Preview
                                   Expanded(
