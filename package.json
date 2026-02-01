@@ -1,0 +1,28 @@
+{
+  "name": "gititdown",
+  "version": "1.0.0",
+  "description": "A multi-platform notes application built with Flutter that uses GitHub as a backend. Store your notes as Markdown files in your own GitHub repository.",
+  "main": "index.js",
+  "directories": {
+    "lib": "lib",
+    "test": "test"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MonforteGG/gititdown.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/MonforteGG/gititdown/issues"
+  },
+  "homepage": "https://github.com/MonforteGG/gititdown#readme",
+  "devDependencies": {
+    "@playwright/test": "^1.58.1"
+  }
+}
