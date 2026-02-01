@@ -4,7 +4,11 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../config/theme.dart';
 import '../../core/error/failures.dart';
 import '../../presentation/providers/auth_provider.dart';
+import '../widgets/github_footer.dart';
 import 'package:url_launcher/url_launcher.dart';
+
+// Font fallback for characters not covered by primary fonts
+const List<String> _fontFallback = ['Noto Sans'];
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -155,6 +159,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
               ),
             ),
           ),
+          // GitHub Footer
+          const Positioned(
+            bottom: 16,
+            right: 16,
+            child: GitHubFooter(),
+          ),
           // Main Content
           SafeArea(
             child: Center(
@@ -172,19 +182,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                           mainAxisAlignment: MainAxisAlignment.center,
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            // Editorial Logo Mark
                             _buildLogoSection(context),
                             const SizedBox(height: 48),
-
-                            // Form Fields
                             _buildFormSection(context, isLoading),
                             const SizedBox(height: 32),
-
-                            // Connect Button
                             _buildConnectButton(context, isLoading),
                             const SizedBox(height: 24),
-
-                            // Security Note
                             _buildSecurityNote(context),
                           ],
                         ),
@@ -233,7 +236,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
               TextSpan(
                 text: 'It',
                 style: TextStyle(
-                  color: Color(0xFF6B6B6B), // Light gray
+                  color: Color(0xFF4A4A4A), // Dark gray (same as "Down")
                   fontWeight: FontWeight.w400,
                 ),
               ),
@@ -265,7 +268,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                   fontStyle: FontStyle.italic,
                   color: Theme.of(context).colorScheme.tertiary,
                   letterSpacing: 0.5,
-                ),
+                ).copyWith(fontFamilyFallback: _fontFallback),
               ),
             ),
             Container(
@@ -391,7 +394,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                 textStyle: GoogleFonts.plusJakartaSans(
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
-                ),
+                ).copyWith(fontFamilyFallback: _fontFallback),
               ),
             ),
           ),
@@ -431,7 +434,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
-                      ),
+                      ).copyWith(fontFamilyFallback: _fontFallback),
                     ),
                   ],
                 )
@@ -443,7 +446,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
-                      ),
+                      ).copyWith(fontFamilyFallback: _fontFallback),
                     ),
                     const SizedBox(width: 8),
                     const Icon(Icons.arrow_forward_rounded, size: 18),

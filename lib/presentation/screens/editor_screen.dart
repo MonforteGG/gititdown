@@ -9,6 +9,9 @@ import '../../domain/entities/note.dart';
 import '../../presentation/providers/notes_provider.dart';
 import '../widgets/notebook_background.dart';
 
+// Font fallback for characters not covered by primary fonts
+const List<String> _fontFallback = ['Noto Sans'];
+
 enum EditorMode { view, edit }
 
 class EditorScreen extends ConsumerStatefulWidget {
@@ -424,14 +427,14 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
           fontSize: 24,
           fontWeight: FontWeight.w600,
           color: Theme.of(context).colorScheme.onSurface,
-        ),
+        ).copyWith(fontFamilyFallback: _fontFallback),
         decoration: InputDecoration(
           hintText: 'Note title',
           hintStyle: GoogleFonts.playfairDisplay(
             fontSize: 24,
             fontWeight: FontWeight.w600,
             color: Theme.of(context).colorScheme.tertiary.withOpacity(0.5),
-          ),
+          ).copyWith(fontFamilyFallback: _fontFallback),
           border: InputBorder.none,
           enabledBorder: InputBorder.none,
           focusedBorder: InputBorder.none,
@@ -456,54 +459,54 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
           fontWeight: FontWeight.w700,
           color: Theme.of(context).colorScheme.onSurface,
           height: 1.3,
-        ),
+        ).copyWith(fontFamilyFallback: _fontFallback),
         h2: GoogleFonts.playfairDisplay(
           fontSize: 26,
           fontWeight: FontWeight.w600,
           color: Theme.of(context).colorScheme.onSurface,
           height: 1.3,
-        ),
+        ).copyWith(fontFamilyFallback: _fontFallback),
         h3: GoogleFonts.playfairDisplay(
           fontSize: 22,
           fontWeight: FontWeight.w600,
           color: Theme.of(context).colorScheme.onSurface,
           height: 1.3,
-        ),
+        ).copyWith(fontFamilyFallback: _fontFallback),
         h4: GoogleFonts.plusJakartaSans(
           fontSize: 18,
           fontWeight: FontWeight.w600,
           color: Theme.of(context).colorScheme.onSurface,
-        ),
+        ).copyWith(fontFamilyFallback: _fontFallback),
         h5: GoogleFonts.plusJakartaSans(
           fontSize: 16,
           fontWeight: FontWeight.w600,
           color: Theme.of(context).colorScheme.onSurface,
-        ),
+        ).copyWith(fontFamilyFallback: _fontFallback),
         h6: GoogleFonts.plusJakartaSans(
           fontSize: 14,
           fontWeight: FontWeight.w600,
           color: Theme.of(context).colorScheme.tertiary,
           letterSpacing: 0.5,
-        ),
+        ).copyWith(fontFamilyFallback: _fontFallback),
         // Body text
         p: GoogleFonts.plusJakartaSans(
           fontSize: 16,
           color: Theme.of(context).colorScheme.onSurface,
           height: 1.7,
-        ),
+        ).copyWith(fontFamilyFallback: _fontFallback),
         // Links
         a: GoogleFonts.plusJakartaSans(
           fontSize: 16,
           color: Theme.of(context).colorScheme.primary,
           decoration: TextDecoration.underline,
           decorationColor: Theme.of(context).colorScheme.primary.withOpacity(0.4),
-        ),
+        ).copyWith(fontFamilyFallback: _fontFallback),
         // Code
         code: GoogleFonts.jetBrainsMono(
           fontSize: 14,
           color: Theme.of(context).colorScheme.primary,
           backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.08),
-        ),
+        ).copyWith(fontFamilyFallback: _fontFallback),
         codeblockDecoration: BoxDecoration(
           color: const Color(0xFFF8F6F4),
           borderRadius: BorderRadius.circular(AppTheme.radiusMd),
@@ -518,7 +521,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
           fontStyle: FontStyle.italic,
           color: Theme.of(context).colorScheme.tertiary,
           height: 1.6,
-        ),
+        ).copyWith(fontFamilyFallback: _fontFallback),
         blockquoteDecoration: BoxDecoration(
           border: Border(
             left: BorderSide(
@@ -532,7 +535,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
         listBullet: GoogleFonts.plusJakartaSans(
           fontSize: 16,
           color: Theme.of(context).colorScheme.primary,
-        ),
+        ).copyWith(fontFamilyFallback: _fontFallback),
         listIndent: 24,
         // Horizontal rule
         horizontalRuleDecoration: BoxDecoration(
@@ -548,11 +551,11 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
           fontSize: 14,
           fontWeight: FontWeight.w600,
           color: Theme.of(context).colorScheme.onSurface,
-        ),
+        ).copyWith(fontFamilyFallback: _fontFallback),
         tableBody: GoogleFonts.plusJakartaSans(
           fontSize: 14,
           color: Theme.of(context).colorScheme.onSurface,
-        ),
+        ).copyWith(fontFamilyFallback: _fontFallback),
         tableBorder: TableBorder.all(
           color: Theme.of(context).colorScheme.outline.withOpacity(0.3),
           width: 1,
@@ -564,12 +567,12 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
           fontSize: 16,
           fontStyle: FontStyle.italic,
           color: Theme.of(context).colorScheme.onSurface,
-        ),
+        ).copyWith(fontFamilyFallback: _fontFallback),
         strong: GoogleFonts.plusJakartaSans(
           fontSize: 16,
           fontWeight: FontWeight.w700,
           color: Theme.of(context).colorScheme.onSurface,
-        ),
+        ).copyWith(fontFamilyFallback: _fontFallback),
         // Spacing
         h1Padding: const EdgeInsets.only(top: 24, bottom: 12),
         h2Padding: const EdgeInsets.only(top: 20, bottom: 10),
@@ -595,14 +598,14 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
           fontSize: 14,
           height: 1.7,
           color: Theme.of(context).colorScheme.onSurface,
-        ),
+        ).copyWith(fontFamilyFallback: _fontFallback),
         decoration: InputDecoration(
           hintText: 'Start writing in Markdown...\n\n# Heading\n**bold** and *italic*\n- List item',
           hintStyle: GoogleFonts.jetBrainsMono(
             fontSize: 14,
             height: 1.7,
             color: Theme.of(context).colorScheme.tertiary.withOpacity(0.4),
-          ),
+          ).copyWith(fontFamilyFallback: _fontFallback),
           border: InputBorder.none,
           enabledBorder: InputBorder.none,
           focusedBorder: InputBorder.none,
@@ -662,7 +665,7 @@ class _ModeButton extends StatelessWidget {
                 color: isSelected
                     ? Theme.of(context).colorScheme.onPrimary
                     : Theme.of(context).colorScheme.tertiary,
-              ),
+              ).copyWith(fontFamilyFallback: _fontFallback),
             ),
           ],
         ),

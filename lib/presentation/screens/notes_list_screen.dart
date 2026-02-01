@@ -5,8 +5,12 @@ import '../../config/theme.dart';
 import '../../domain/entities/note.dart';
 import '../../presentation/providers/auth_provider.dart';
 import '../../presentation/providers/notes_provider.dart';
+import '../widgets/github_footer.dart';
 import '../widgets/notebook_background.dart';
 import 'editor_screen.dart';
+
+// Font fallback for characters not covered by primary fonts
+const List<String> _fontFallback = ['Noto Sans'];
 
 class NotesListScreen extends ConsumerStatefulWidget {
   const NotesListScreen({super.key});
@@ -183,60 +187,60 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
               ),
             ),
           ),
+          // GitHub Footer
+          const Positioned(
+            bottom: 16,
+            right: 16,
+            child: GitHubFooter(),
+          ),
           // Notebook page with content
           SafeArea(
             child: NotebookPage(
               maxWidth: 720,
               margin: const EdgeInsets.fromLTRB(24, 16, 24, 24),
-              child: CustomScrollView(
-                slivers: [
-                  // Custom App Bar
-                  _buildAppBar(context),
-                  // Content
-                  SliverToBoxAdapter(
-                    child: isLoading && notes.isEmpty
-                        ? _buildLoadingState()
-                        : notes.isEmpty
-                            ? _buildEmptyState(context)
-                            : null,
-                  ),
-                  if (!isLoading || notes.isNotEmpty)
-                    SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(
-                        AppTheme.md,
-                        AppTheme.sm,
-                        AppTheme.md,
-                        100, // Space for FAB
+              child: Stack(
+                children: [
+                  CustomScrollView(
+                    slivers: [
+                      _buildAppBar(context),
+                      SliverToBoxAdapter(
+                        child: isLoading && notes.isEmpty
+                            ? _buildLoadingState()
+                            : notes.isEmpty
+                                ? _buildEmptyState(context)
+                                : null,
                       ),
-                      sliver: SliverList(
-                        delegate: SliverChildBuilderDelegate(
-                          (context, index) {
-                            final note = notes[index];
-                            return _NoteCard(
-                              note: note,
-                              index: index,
-                              onTap: () => _openNote(note),
-                              onDelete: () => _deleteNote(note),
-                              formatFileName: _formatFileName,
-                            );
-                          },
-                          childCount: notes.length,
+                      if (!isLoading || notes.isNotEmpty)
+                        SliverPadding(
+                          padding: const EdgeInsets.fromLTRB(
+                            AppTheme.md,
+                            AppTheme.sm,
+                            AppTheme.md,
+                            AppTheme.xxl,
+                          ),
+                          sliver: SliverList(
+                            delegate: SliverChildBuilderDelegate(
+                              (context, index) {
+                                final note = notes[index];
+                                return _NoteCard(
+                                  note: note,
+                                  index: index,
+                                  onTap: () => _openNote(note),
+                                  onDelete: () => _deleteNote(note),
+                                  formatFileName: _formatFileName,
+                                );
+                              },
+                              childCount: notes.length,
+                            ),
+                          ),
                         ),
-                      ),
-                    ),
+                    ],
+                  ),
                 ],
               ),
             ),
           ),
         ],
-      ),
-      floatingActionButton: ScaleTransition(
-        scale: _fabScale,
-        child: FloatingActionButton.extended(
-          onPressed: _createNewNote,
-          icon: const Icon(Icons.add_rounded),
-          label: const Text('New Note'),
-        ),
       ),
     );
   }
@@ -265,7 +269,7 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
                 fontSize: 24,
                 fontWeight: FontWeight.w600,
                 color: Theme.of(context).colorScheme.onSurface,
-              ),
+              ).copyWith(fontFamilyFallback: _fontFallback),
             ),
           ],
         ),
@@ -275,13 +279,16 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
         ],
       ),
       actions: [
-        // Refresh button
+        IconButton(
+          icon: const Icon(Icons.add_rounded),
+          tooltip: 'New Note',
+          onPressed: _createNewNote,
+        ),
         IconButton(
           icon: const Icon(Icons.refresh_rounded),
           tooltip: 'Refresh',
           onPressed: () => ref.read(notesProvider.notifier).loadNotes(),
         ),
-        // Logout with custom styling
         Padding(
           padding: const EdgeInsets.only(right: 8),
           child: IconButton(
@@ -541,7 +548,7 @@ class _NoteCardState extends State<_NoteCard>
                                       fontSize: 7,
                                       fontWeight: FontWeight.w700,
                                       color: Theme.of(context).colorScheme.onPrimary,
-                                    ),
+                                    ).copyWith(fontFamilyFallback: _fontFallback),
                                   ),
                                 ),
                               ),

@@ -10,6 +10,11 @@ class AppTheme {
   static const Color warmGray = Color(0xFF6B6560);
   static const Color mutedGray = Color(0xFF9A9590);
 
+  // Font fallback for characters not covered by primary fonts
+  static const List<String> _fontFallback = [
+    'Noto Sans', // Covers Latin, Cyrillic, Greek, Vietnamese, etc.
+  ];
+
   static const Color errorColor = Color(0xFFB33A3A);
   static const Color successColor = Color(0xFF2D6A4F);
   static const Color warningColor = Color(0xFFB8860B);
@@ -64,89 +69,89 @@ class AppTheme {
         color: textColor,
         letterSpacing: -1.0,
         height: 1.1,
-      ),
+      ).copyWith(fontFamilyFallback: _fontFallback),
       displayMedium: GoogleFonts.playfairDisplay(
         fontSize: 32,
         fontWeight: FontWeight.w600,
         color: textColor,
         letterSpacing: -0.5,
         height: 1.2,
-      ),
+      ).copyWith(fontFamilyFallback: _fontFallback),
       displaySmall: GoogleFonts.playfairDisplay(
         fontSize: 24,
         fontWeight: FontWeight.w600,
         color: textColor,
         height: 1.3,
-      ),
+      ).copyWith(fontFamilyFallback: _fontFallback),
       headlineLarge: GoogleFonts.plusJakartaSans(
         fontSize: 28,
         fontWeight: FontWeight.w700,
         color: textColor,
         letterSpacing: -0.5,
-      ),
+      ).copyWith(fontFamilyFallback: _fontFallback),
       headlineMedium: GoogleFonts.plusJakartaSans(
         fontSize: 22,
         fontWeight: FontWeight.w600,
         color: textColor,
-      ),
+      ).copyWith(fontFamilyFallback: _fontFallback),
       headlineSmall: GoogleFonts.plusJakartaSans(
         fontSize: 18,
         fontWeight: FontWeight.w600,
         color: textColor,
-      ),
+      ).copyWith(fontFamilyFallback: _fontFallback),
       titleLarge: GoogleFonts.plusJakartaSans(
         fontSize: 18,
         fontWeight: FontWeight.w600,
         color: textColor,
         letterSpacing: -0.2,
-      ),
+      ).copyWith(fontFamilyFallback: _fontFallback),
       titleMedium: GoogleFonts.plusJakartaSans(
         fontSize: 16,
         fontWeight: FontWeight.w600,
         color: textColor,
-      ),
+      ).copyWith(fontFamilyFallback: _fontFallback),
       titleSmall: GoogleFonts.plusJakartaSans(
         fontSize: 14,
         fontWeight: FontWeight.w600,
         color: textColor,
         letterSpacing: 0.5,
-      ),
+      ).copyWith(fontFamilyFallback: _fontFallback),
       bodyLarge: GoogleFonts.plusJakartaSans(
         fontSize: 16,
         fontWeight: FontWeight.w400,
         color: textColor,
         height: 1.6,
-      ),
+      ).copyWith(fontFamilyFallback: _fontFallback),
       bodyMedium: GoogleFonts.plusJakartaSans(
         fontSize: 14,
         fontWeight: FontWeight.w400,
         color: textColor,
         height: 1.5,
-      ),
+      ).copyWith(fontFamilyFallback: _fontFallback),
       bodySmall: GoogleFonts.plusJakartaSans(
         fontSize: 12,
         fontWeight: FontWeight.w400,
         color: secondaryColor,
         height: 1.4,
-      ),
+      ).copyWith(fontFamilyFallback: _fontFallback),
       labelLarge: GoogleFonts.plusJakartaSans(
         fontSize: 14,
         fontWeight: FontWeight.w600,
         color: textColor,
         letterSpacing: 0.3,
-      ),
+      ).copyWith(fontFamilyFallback: _fontFallback),
       labelMedium: GoogleFonts.plusJakartaSans(
         fontSize: 12,
         fontWeight: FontWeight.w500,
         color: secondaryColor,
         letterSpacing: 0.5,
-      ),
+      ).copyWith(fontFamilyFallback: _fontFallback),
       labelSmall: GoogleFonts.plusJakartaSans(
         fontSize: 10,
         fontWeight: FontWeight.w500,
         color: secondaryColor,
         letterSpacing: 0.8,
-      ),
+      ).copyWith(fontFamilyFallback: _fontFallback),
     );
   }
 
@@ -181,7 +186,7 @@ class AppTheme {
           fontWeight: FontWeight.w600,
           color: inkBlack,
           letterSpacing: -0.2,
-        ),
+        ).copyWith(fontFamilyFallback: _fontFallback),
         iconTheme: const IconThemeData(
           color: inkBlack,
           size: 22,
@@ -224,11 +229,11 @@ class AppTheme {
           fontSize: 14,
           fontWeight: FontWeight.w500,
           color: warmGray,
-        ),
+        ).copyWith(fontFamilyFallback: _fontFallback),
         hintStyle: GoogleFonts.plusJakartaSans(
           fontSize: 14,
           color: mutedGray,
-        ),
+        ).copyWith(fontFamilyFallback: _fontFallback),
         prefixIconColor: warmGray,
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
@@ -247,7 +252,7 @@ class AppTheme {
             fontSize: 15,
             fontWeight: FontWeight.w600,
             letterSpacing: 0.3,
-          ),
+          ).copyWith(fontFamilyFallback: _fontFallback),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
@@ -263,7 +268,7 @@ class AppTheme {
             fontSize: 15,
             fontWeight: FontWeight.w600,
             letterSpacing: 0.3,
-          ),
+          ).copyWith(fontFamilyFallback: _fontFallback),
         ),
       ),
       textButtonTheme: TextButtonThemeData(
@@ -273,7 +278,7 @@ class AppTheme {
           textStyle: GoogleFonts.plusJakartaSans(
             fontSize: 14,
             fontWeight: FontWeight.w600,
-          ),
+          ).copyWith(fontFamilyFallback: _fontFallback),
         ),
       ),
       filledButtonTheme: FilledButtonThemeData(
@@ -288,7 +293,7 @@ class AppTheme {
           textStyle: GoogleFonts.plusJakartaSans(
             fontSize: 14,
             fontWeight: FontWeight.w600,
-          ),
+          ).copyWith(fontFamilyFallback: _fontFallback),
         ),
       ),
       floatingActionButtonTheme: FloatingActionButtonThemeData(
@@ -303,7 +308,7 @@ class AppTheme {
           fontSize: 14,
           fontWeight: FontWeight.w600,
           letterSpacing: 0.3,
-        ),
+        ).copyWith(fontFamilyFallback: _fontFallback),
       ),
       iconButtonTheme: IconButtonThemeData(
         style: IconButton.styleFrom(
@@ -337,7 +342,7 @@ class AppTheme {
             GoogleFonts.plusJakartaSans(
               fontSize: 13,
               fontWeight: FontWeight.w600,
-            ),
+            ).copyWith(fontFamilyFallback: _fontFallback),
           ),
         ),
       ),
@@ -352,7 +357,7 @@ class AppTheme {
         contentTextStyle: GoogleFonts.plusJakartaSans(
           fontSize: 14,
           color: paperCream,
-        ),
+        ).copyWith(fontFamilyFallback: _fontFallback),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(radiusMd),
         ),
@@ -368,12 +373,12 @@ class AppTheme {
           fontSize: 20,
           fontWeight: FontWeight.w600,
           color: inkBlack,
-        ),
+        ).copyWith(fontFamilyFallback: _fontFallback),
         contentTextStyle: GoogleFonts.plusJakartaSans(
           fontSize: 15,
           color: warmGray,
           height: 1.5,
-        ),
+        ).copyWith(fontFamilyFallback: _fontFallback),
       ),
       bottomSheetTheme: const BottomSheetThemeData(
         backgroundColor: Colors.white,
@@ -394,7 +399,7 @@ class AppTheme {
         labelStyle: GoogleFonts.plusJakartaSans(
           fontSize: 13,
           fontWeight: FontWeight.w500,
-        ),
+        ).copyWith(fontFamilyFallback: _fontFallback),
         side: BorderSide.none,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(radiusSm),
@@ -408,7 +413,7 @@ class AppTheme {
         textStyle: GoogleFonts.plusJakartaSans(
           fontSize: 12,
           color: paperCream,
-        ),
+        ).copyWith(fontFamilyFallback: _fontFallback),
       ),
     );
   }

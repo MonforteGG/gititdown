@@ -1,12 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'config/theme.dart';
 import 'presentation/providers/auth_provider.dart';
 import 'presentation/screens/login_screen.dart';
 import 'presentation/screens/notes_list_screen.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Preload fonts to ensure they're available before rendering
+  await GoogleFonts.pendingFonts([
+    GoogleFonts.playfairDisplay(),
+    GoogleFonts.plusJakartaSans(),
+    GoogleFonts.jetBrainsMono(),
+    GoogleFonts.notoSans(), // Load the fallback font
+  ]);
+
   runApp(
     const ProviderScope(
       child: GitItDownApp(),
