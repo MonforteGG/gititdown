@@ -2,13 +2,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/error/failures.dart';
 import '../../core/utils/usecase.dart';
 import '../../domain/entities/note.dart';
+import '../../domain/entities/note_commit.dart';
 import '../../domain/usecases/delete_note.dart';
 import '../../domain/usecases/get_note.dart';
+import '../../domain/usecases/get_note_history.dart';
 import '../../domain/usecases/save_note.dart';
 import 'dependency_providers.dart';
 
 // Notes State
 enum NotesStatus { initial, loading, loaded, saving, deleting, error }
+
+enum HistoryStatus { initial, loading, loaded, error }
 
 class NotesState {
   final NotesStatus status;
@@ -17,12 +21,19 @@ class NotesState {
   final Failure? failure;
   final String? errorMessage;
 
+  final HistoryStatus historyStatus;
+  final List<NoteCommit> noteHistory;
+  final Note? versionNote;
+
   const NotesState({
     this.status = NotesStatus.initial,
     this.notes = const [],
     this.selectedNote,
     this.failure,
     this.errorMessage,
+    this.historyStatus = HistoryStatus.initial,
+    this.noteHistory = const [],
+    this.versionNote,
   });
 
   NotesState copyWith({
@@ -32,6 +43,9 @@ class NotesState {
     Failure? failure,
     String? errorMessage,
     bool clearSelectedNote = false,
+    HistoryStatus? historyStatus,
+    List<NoteCommit>? noteHistory,
+    Note? versionNote,
   }) {
     return NotesState(
       status: status ?? this.status,
@@ -39,6 +53,9 @@ class NotesState {
       selectedNote: clearSelectedNote ? null : (selectedNote ?? this.selectedNote),
       failure: failure ?? this.failure,
       errorMessage: errorMessage ?? this.errorMessage,
+      historyStatus: historyStatus ?? this.historyStatus,
+      noteHistory: noteHistory ?? this.noteHistory,
+      versionNote: versionNote,
     );
   }
 }
@@ -165,6 +182,61 @@ class NotesNotifier extends StateNotifier<NotesState> {
     await loadNote(path);
     state = state.copyWith(
       errorMessage: 'This note was modified externally. Please review and save again.',
+    );
+  }
+
+  Future<void> loadNoteHistory(String path) async {
+    state = state.copyWith(
+      historyStatus: HistoryStatus.loading,
+      noteHistory: [],
+      versionNote: null,
+      failure: null,
+    );
+
+    final getNoteHistoryUseCase = _ref.read(getNoteHistoryUseCaseProvider);
+    final result = await getNoteHistoryUseCase(GetNoteHistoryParams(path: path));
+
+    result.fold(
+      (failure) => state = state.copyWith(
+        historyStatus: HistoryStatus.error,
+        failure: failure,
+      ),
+      (history) => state = state.copyWith(
+        historyStatus: HistoryStatus.loaded,
+        noteHistory: history,
+      ),
+    );
+  }
+
+  Future<void> loadNoteVersion(String path, String commitSha) async {
+    state = state.copyWith(status: NotesStatus.loading, failure: null);
+
+    final getNoteUseCase = _ref.read(getNoteUseCaseProvider);
+    final result = await getNoteUseCase(GetNoteParams(path: path, commitSha: commitSha));
+
+    result.fold(
+      (failure) => state = state.copyWith(
+        status: NotesStatus.error,
+        failure: failure,
+      ),
+      (note) => state = state.copyWith(
+        status: NotesStatus.loaded,
+        versionNote: note,
+      ),
+    );
+  }
+
+  void clearHistoryState() {
+    state = state.copyWith(
+      historyStatus: HistoryStatus.initial,
+      noteHistory: [],
+      versionNote: null,
+    );
+  }
+
+  void clearVersionView() {
+    state = state.copyWith(
+      versionNote: null,
     );
   }
 }

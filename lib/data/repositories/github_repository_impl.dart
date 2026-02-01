@@ -2,6 +2,7 @@ import 'package:dartz/dartz.dart';
 import '../../core/error/failures.dart';
 import '../../core/utils/base64_utils.dart';
 import '../../domain/entities/note.dart';
+import '../../domain/entities/note_commit.dart';
 import '../../domain/repositories/github_repository.dart';
 import '../datasources/github_remote_datasource.dart';
 
@@ -27,16 +28,18 @@ class GitHubRepositoryImpl implements IGitHubRepository {
   }
 
   @override
-  Future<Either<Failure, Note>> getNote(String path) async {
+  Future<Either<Failure, Note>> getNote(String path, {String? commitSha}) async {
     try {
-      final file = await _remoteDataSource.getFile(path);
-      
+      final file = commitSha != null
+          ? await _remoteDataSource.getFileAtCommit(path, commitSha)
+          : await _remoteDataSource.getFile(path);
+
       // Decode content if present
       String decodedContent = '';
       if (file.content != null) {
         decodedContent = Base64Utils.decode(file.content!);
       }
-      
+
       return Right(file.toEntity(decodedContent: decodedContent));
     } on Failure catch (e) {
       return Left(e);
@@ -79,6 +82,41 @@ class GitHubRepositoryImpl implements IGitHubRepository {
     try {
       final isValid = await _remoteDataSource.validateCredentials();
       return Right(isValid);
+    } on Failure catch (e) {
+      return Left(e);
+    } catch (e) {
+      return Left(ServerFailure(message: 'Unexpected error: $e'));
+    }
+  }
+
+  @override
+  Future<Either<Failure, List<NoteCommit>>> getNoteHistory(String path) async {
+    try {
+      final commits = await _remoteDataSource.getFileCommits(path);
+      final noteCommits = commits.map((commit) => commit.toEntity()).toList();
+      return Right(noteCommits);
+    } on Failure catch (e) {
+      return Left(e);
+    } catch (e) {
+      return Left(ServerFailure(message: 'Unexpected error: $e'));
+    }
+  }
+
+  @override
+  Future<Either<Failure, Note>> getNoteAtVersion(
+    String path,
+    String commitSha,
+  ) async {
+    try {
+      final file = await _remoteDataSource.getFileAtCommit(path, commitSha);
+
+      // Decode content if present
+      String decodedContent = '';
+      if (file.content != null) {
+        decodedContent = Base64Utils.decode(file.content!);
+      }
+
+      return Right(file.toEntity(decodedContent: decodedContent));
     } on Failure catch (e) {
       return Left(e);
     } catch (e) {

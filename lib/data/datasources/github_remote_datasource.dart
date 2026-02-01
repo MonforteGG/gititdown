@@ -3,6 +3,7 @@ import '../../config/constants.dart';
 import '../../core/error/failures.dart';
 import '../../core/utils/base64_utils.dart';
 import '../models/github_file_model.dart';
+import '../models/note_commit_model.dart';
 
 abstract class IGitHubRemoteDataSource {
   Future<List<GitHubFileModel>> getFiles(String path);
@@ -10,6 +11,8 @@ abstract class IGitHubRemoteDataSource {
   Future<GitHubFileModel> createOrUpdateFile(String path, String content, String? sha);
   Future<void> deleteFile(String path, String sha);
   Future<bool> validateCredentials();
+  Future<List<NoteCommitModel>> getFileCommits(String path);
+  Future<GitHubFileModel> getFileAtCommit(String path, String commitSha);
 }
 
 class GitHubRemoteDataSource implements IGitHubRemoteDataSource {
@@ -137,6 +140,42 @@ class GitHubRemoteDataSource implements IGitHubRemoteDataSource {
     try {
       final response = await _dio.head(_repoPath);
       return response.statusCode == 200;
+    } on DioException catch (e) {
+      throw _handleDioError(e);
+    }
+  }
+
+  @override
+  Future<List<NoteCommitModel>> getFileCommits(String path) async {
+    try {
+      final response = await _dio.get(
+        '$_repoPath/commits',
+        queryParameters: {'path': path},
+      );
+
+      if (response.data is List) {
+        final commits = (response.data as List)
+            .map((json) => NoteCommitModel.fromJson(json as Map<String, dynamic>))
+            .toList();
+        return commits;
+      }
+
+      return [];
+    } on DioException catch (e) {
+      throw _handleDioError(e);
+    }
+  }
+
+  @override
+  Future<GitHubFileModel> getFileAtCommit(String path, String commitSha) async {
+    try {
+      final response = await _dio.get(
+        '$_repoPath/contents/$path',
+        queryParameters: {'ref': commitSha},
+      );
+
+      final file = GitHubFileModel.fromJson(response.data as Map<String, dynamic>);
+      return file;
     } on DioException catch (e) {
       throw _handleDioError(e);
     }

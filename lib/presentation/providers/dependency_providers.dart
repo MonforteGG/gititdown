@@ -10,6 +10,7 @@ import '../../domain/repositories/github_repository.dart';
 import '../../domain/repositories/local_storage_repository.dart';
 import '../../domain/usecases/delete_note.dart';
 import '../../domain/usecases/get_note.dart';
+import '../../domain/usecases/get_note_history.dart';
 import '../../domain/usecases/get_notes.dart';
 import '../../domain/usecases/login.dart';
 import '../../domain/usecases/logout.dart';
@@ -98,6 +99,12 @@ final saveNoteUseCaseProvider = Provider<SaveNote>(
 
 final deleteNoteUseCaseProvider = Provider<DeleteNote>(
   (ref) => DeleteNote(
+    ref.watch(githubRepositoryProvider),
+  ),
+);
+
+final getNoteHistoryUseCaseProvider = Provider<GetNoteHistory>(
+  (ref) => GetNoteHistory(
     ref.watch(githubRepositoryProvider),
   ),
 );

@@ -11,12 +11,13 @@ class GetNote implements UseCase<Note, GetNoteParams> {
 
   @override
   Future<Either<Failure, Note>> call(GetNoteParams params) async {
-    return await repository.getNote(params.path);
+    return await repository.getNote(params.path, commitSha: params.commitSha);
   }
 }
 
 class GetNoteParams {
   final String path;
+  final String? commitSha;
 
-  const GetNoteParams({required this.path});
+  const GetNoteParams({required this.path, this.commitSha});
 }

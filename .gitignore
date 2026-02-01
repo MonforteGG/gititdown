@@ -134,3 +134,13 @@ ios/Runner/GoogleService-Info.plist
 *.tmp
 .temp/
 temp/
+
+# === Playwright ===
+.playwright-mcp/
+
+# === Node ===
+node_modules/
+
+# === OS specific ===
+nul
+windows/

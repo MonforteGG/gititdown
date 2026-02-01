@@ -7,6 +7,7 @@ import '../../config/theme.dart';
 import '../../core/error/failures.dart';
 import '../../domain/entities/note.dart';
 import '../../presentation/providers/notes_provider.dart';
+import 'history_screen.dart';
 import '../widgets/github_footer.dart';
 import '../widgets/notebook_background.dart';
 
@@ -360,6 +361,23 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
               ],
             ),
           ),
+          // History Button
+          if (widget.note != null)
+            IconButton(
+              icon: const Icon(Icons.history_rounded),
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => HistoryScreen(
+                      notePath: widget.note!.path,
+                      noteName: widget.note!.name,
+                    ),
+                  ),
+                );
+              },
+              tooltip: 'View history',
+            ),
+          const SizedBox(width: 8),
           // Mode Toggle
           Container(
             decoration: BoxDecoration(
@@ -389,12 +407,27 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
           ),
           const SizedBox(width: 8),
           // Save Button
-          if (_mode == EditorMode.edit)
-            _SaveButton(
-              isSaving: isSaving,
-              hasChanges: _hasChanges,
-              onSave: _saveNote,
-            ),
+          IconButton(
+            icon: isSaving
+                ? SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
+                  )
+                : Icon(
+                    _hasChanges ? Icons.save_outlined : Icons.check_rounded,
+                    color: _mode == EditorMode.edit && _hasChanges
+                        ? Theme.of(context).colorScheme.onSurface
+                        : Theme.of(context).colorScheme.tertiary.withOpacity(0.5),
+                  ),
+            onPressed: _mode == EditorMode.edit && _hasChanges && !isSaving
+                ? _saveNote
+                : null,
+            tooltip: _hasChanges ? 'Save changes' : 'Saved',
+          ),
         ],
       ),
     );
@@ -651,7 +684,7 @@ class _ModeButton extends StatelessWidget {
         decoration: BoxDecoration(
           color: isSelected
               ? Theme.of(context).colorScheme.primary
-              : Colors.transparent,
+              : Theme.of(context).colorScheme.outline.withOpacity(0.08),
           borderRadius: BorderRadius.circular(AppTheme.radiusSm - 2),
         ),
         child: Row(
@@ -662,7 +695,7 @@ class _ModeButton extends StatelessWidget {
               size: 16,
               color: isSelected
                   ? Theme.of(context).colorScheme.onPrimary
-                  : Theme.of(context).colorScheme.tertiary,
+                  : Theme.of(context).colorScheme.tertiary.withOpacity(0.6),
             ),
             const SizedBox(width: 4),
             Text(
@@ -672,53 +705,10 @@ class _ModeButton extends StatelessWidget {
                 fontWeight: FontWeight.w600,
                 color: isSelected
                     ? Theme.of(context).colorScheme.onPrimary
-                    : Theme.of(context).colorScheme.tertiary,
+                    : Theme.of(context).colorScheme.tertiary.withOpacity(0.6),
               ).copyWith(fontFamilyFallback: _fontFallback),
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-// Save Button with animation
-class _SaveButton extends StatelessWidget {
-  final bool isSaving;
-  final bool hasChanges;
-  final VoidCallback onSave;
-
-  const _SaveButton({
-    required this.isSaving,
-    required this.hasChanges,
-    required this.onSave,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 200),
-      child: FilledButton.icon(
-        onPressed: isSaving ? null : onSave,
-        icon: isSaving
-            ? SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: Theme.of(context).colorScheme.onPrimary,
-                ),
-              )
-            : Icon(
-                hasChanges ? Icons.save_rounded : Icons.check_rounded,
-                size: 18,
-              ),
-        label: Text(isSaving ? 'Saving' : 'Save'),
-        style: FilledButton.styleFrom(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          backgroundColor: hasChanges
-              ? Theme.of(context).colorScheme.primary
-              : Theme.of(context).colorScheme.primary.withOpacity(0.7),
         ),
       ),
     );
