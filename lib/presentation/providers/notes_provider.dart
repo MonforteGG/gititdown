@@ -62,8 +62,15 @@ class NotesState {
 
 class NotesNotifier extends StateNotifier<NotesState> {
   final Ref _ref;
+  bool _isDisposed = false;
 
   NotesNotifier(this._ref) : super(const NotesState());
+
+  @override
+  void dispose() {
+    _isDisposed = true;
+    super.dispose();
+  }
 
   Future<void> loadNotes() async {
     state = state.copyWith(status: NotesStatus.loading, failure: null);
@@ -84,6 +91,7 @@ class NotesNotifier extends StateNotifier<NotesState> {
   }
 
   Future<void> loadNote(String path) async {
+    if (_isDisposed) return;
     state = state.copyWith(status: NotesStatus.loading, failure: null);
     
     final getNoteUseCase = _ref.read(getNoteUseCaseProvider);
@@ -102,6 +110,7 @@ class NotesNotifier extends StateNotifier<NotesState> {
   }
 
   Future<bool> saveNote(Note note) async {
+    if (_isDisposed) return false;
     state = state.copyWith(status: NotesStatus.saving, failure: null);
     
     final saveNoteUseCase = _ref.read(saveNoteUseCaseProvider);
@@ -138,6 +147,7 @@ class NotesNotifier extends StateNotifier<NotesState> {
   }
 
   Future<bool> deleteNote(String path, String sha) async {
+    if (_isDisposed) return false;
     state = state.copyWith(status: NotesStatus.deleting, failure: null);
     
     final deleteNoteUseCase = _ref.read(deleteNoteUseCaseProvider);
@@ -186,6 +196,7 @@ class NotesNotifier extends StateNotifier<NotesState> {
   }
 
   Future<void> loadNoteHistory(String path) async {
+    if (_isDisposed) return;
     state = state.copyWith(
       historyStatus: HistoryStatus.loading,
       noteHistory: [],
@@ -209,6 +220,7 @@ class NotesNotifier extends StateNotifier<NotesState> {
   }
 
   Future<void> loadNoteVersion(String path, String commitSha) async {
+    if (_isDisposed) return;
     state = state.copyWith(status: NotesStatus.loading, failure: null);
 
     final getNoteUseCase = _ref.read(getNoteUseCaseProvider);

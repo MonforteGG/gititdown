@@ -37,7 +37,6 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
 
   @override
   void dispose() {
-    ref.read(notesProvider.notifier).clearHistoryState();
     super.dispose();
   }
 
