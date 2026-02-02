@@ -1,31 +1,43 @@
 # GitItDown
 
-A multi-platform notes application built with Flutter that uses GitHub as a backend. Store your notes as Markdown files in your own GitHub repository.
+[![GitHub release](https://img.shields.io/github/release/MonforteGG/gititdown.svg)](https://github.com/MonforteGG/gititdown/releases)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+**Your notes, versioned and everywhere.** A multi-platform notes app built with Flutter that uses GitHub as a backend.
+
+---
+
+## Screenshots
+
+*(Add your screenshots here)*
+
+---
 
 ## Features
 
-- **GitHub Backend**: Your notes are stored as `.md` files in your own GitHub repository
-- **Cross-Platform**: Works on iOS, Android, Windows, macOS, and Linux
-- **Secure**: Personal Access Token (PAT) is securely stored in device's Keychain/Keystore
-- **Markdown Support**: Full Markdown rendering with code syntax highlighting
-- **Distraction-Free Design**: Clean, minimal UI focused on writing
-- **Offline Awareness**: Handles network errors gracefully
-- **Conflict Resolution**: Detects external edits and prompts to reload or overwrite
+- **GitHub Backend** - Notes stored as `.md` files in your GitHub repository
+- **Markdown Support** - Full rendering with syntax highlighting
+- **Version History** - View and restore previous versions of your notes
+- **Cross-Platform** - iOS, Android, Windows, macOS, Linux, and Web
+- **Secure** - PAT stored securely using platform-specific storage
+- **Responsive Design** - Optimized UI for desktop and mobile
+- **Conflict Detection** - Handles external edits gracefully
 
-## Architecture
+---
 
-This project follows **Clean Architecture** with three distinct layers:
+## Download
 
-```
-lib/
-├── config/           # Themes, constants
-├── core/             # Utilities, errors
-├── data/             # Data layer (API, storage)
-├── domain/           # Business logic (entities, use cases)
-└── presentation/     # UI layer (screens, providers)
-```
+### Windows
 
-**State Management**: Riverpod
+[![Download for Windows](https://img.shields.io/badge/Download-Windows-blue?logo=windows)](https://github.com/MonforteGG/gititdown/releases/tag/v1.0.0)
+
+Download the latest Windows release from [GitHub Releases](https://github.com/MonforteGG/gititdown/releases/tag/v1.0.0)
+
+### Web
+
+Access the web version at: **https://gititdown.vercel.app** *(pending deployment)*
+
+---
 
 ## Getting Started
 
@@ -33,42 +45,50 @@ lib/
 
 1. A GitHub account
 2. A GitHub repository to store your notes
-3. A GitHub Personal Access Token with `repo` scope
+3. A GitHub Personal Access Token (PAT) with `repo` scope
 
-### Installation
+### Quick Start
 
-1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/gititdown.git
+# Clone the repository
+git clone https://github.com/MonforteGG/gititdown.git
 cd gititdown
-```
 
-2. Install dependencies:
-```bash
+# Install dependencies
 flutter pub get
-```
 
-3. Run the app:
-```bash
+# Run the app
 flutter run
 ```
 
 ### Creating a GitHub Personal Access Token
 
-1. Click "Create a token on GitHub" in the app, or go to:
-   https://github.com/settings/tokens/new
-
-2. Set the token description (e.g., "GitItDown App")
-
-3. Select the `repo` scope
-
+1. Go to: https://github.com/settings/tokens/new
+2. Set description: "GitItDown App"
+3. Select `repo` scope
 4. Generate and copy the token
+5. Enter in the app along with your username and repository name
 
-5. Paste it in the app along with your GitHub username and repository name
+---
+
+## Architecture
+
+Clean Architecture with three layers:
+
+```
+lib/
+├── config/           # Themes, constants
+├── core/             # Utilities, error handling
+├── data/             # Data sources, repositories
+├── domain/           # Entities, use cases
+└── presentation/     # UI, providers, screens
+```
+
+**State Management:** Riverpod with StateNotifier
+
+---
 
 ## Development
-
-### Build Commands
 
 ```bash
 # Get dependencies
@@ -80,43 +100,63 @@ flutter test
 # Build for specific platforms
 flutter build apk        # Android
 flutter build ios        # iOS
-flutter build windows    # Windows
+flutter build windows    # Windows (.exe)
 flutter build macos      # macOS
 flutter build linux      # Linux
+flutter build web        # Web (build/web/)
 ```
 
-### Running Tests
-
-```bash
-flutter test
-```
+---
 
 ## Dependencies
 
-- **flutter_riverpod**: State management
-- **dio**: HTTP client for GitHub API
-- **flutter_markdown**: Markdown rendering
-- **flutter_secure_storage**: Secure token storage
-- **google_fonts**: Typography
-- **url_launcher**: Opening external links
+| Package | Purpose |
+|---------|---------|
+| flutter_riverpod | State management |
+| dio | HTTP client for GitHub API |
+| flutter_markdown | Markdown rendering |
+| flutter_secure_storage | Secure token storage |
+| google_fonts | Typography |
+| url_launcher | Open external links |
+| dartz | Functional programming |
+| equatable | Value equality |
+
+---
 
 ## Security
 
-- Your Personal Access Token is stored securely using platform-specific secure storage
-  - iOS/macOS: Keychain
-  - Android: Keystore
-  - Windows: Credential Locker
-  - Linux: Secret Service API
-- The token is never transmitted anywhere except to GitHub's API
+- PAT stored using platform-specific secure storage (Keychain, Keystore, Credential Locker)
+- Token only transmitted to GitHub API
 - No analytics or tracking
+
+---
+
+## Deployment
+
+### Web (Vercel)
+
+```bash
+flutter build web
+# Deploy build/web/ to Vercel
+```
+
+### Windows
+
+```bash
+flutter build windows --release
+# Output: build/windows/x64/runner/Release/gititdown.exe
+```
+
+---
 
 ## License
 
-MIT License - see LICENSE file for details
+MIT License - see [LICENSE](LICENSE) file for details
+
+---
 
 ## Acknowledgments
 
 - GitHub REST API v3
 - Flutter Team
-- Riverpod
-- All open-source contributors
+- Riverpod community
