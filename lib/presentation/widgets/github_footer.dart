@@ -27,6 +27,27 @@ class _GitHubFooterState extends State<GitHubFooter> {
     final hoverColor = Theme.of(context).colorScheme.onSurface;
 
     return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        const SizedBox(width: 100),
+        GestureDetector(
+          onTap: () => launchUrl(
+            Uri.parse('https://github.com/MonforteGG/gititdown/releases'),
+            mode: LaunchMode.externalApplication,
+          ),
+          child: Image.asset(
+            'lib/assets/windows-button.png',
+            height: 32,
+          ),
+        ),
+        _buildMadeWithText(textColor, hoverColor),
+      ],
+    );
+  }
+
+  Widget _buildMadeWithText(Color textColor, Color hoverColor) {
+    return Row(
       mainAxisAlignment: MainAxisAlignment.end,
       children: [
         Text(
