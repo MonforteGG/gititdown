@@ -272,7 +272,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12),
               child: Text(
-                'Your notes, versioned',
+                'Your notes, versioned and everywhere',
                 style: GoogleFonts.playfairDisplay(
                   fontSize: 14,
                   fontStyle: FontStyle.italic,
