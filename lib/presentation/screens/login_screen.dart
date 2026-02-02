@@ -128,6 +128,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     });
 
     final isLoading = authState.status == AuthStatus.loading;
+    final isMobile = MediaQuery.of(context).size.width < 600;
 
     return Scaffold(
       body: Stack(
@@ -159,18 +160,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
               ),
             ),
           ),
-          // Windows Download Badge
-          const Positioned(
-            bottom: 16,
-            left: 16,
-            child: _WindowsDownloadBadge(),
-          ),
-          // GitHub Footer
-          const Positioned(
-            bottom: 16,
-            right: 16,
-            child: GitHubFooter(),
-          ),
+          // Windows Download Badge (desktop only)
+          if (!isMobile)
+            const Positioned(
+              bottom: 16,
+              left: 16,
+              child: _WindowsDownloadBadge(),
+            ),
+          // GitHub Footer (desktop only)
+          if (!isMobile)
+            const Positioned(
+              bottom: 16,
+              right: 16,
+              child: GitHubFooter(),
+            ),
           // Main Content
           SafeArea(
             child: Center(
