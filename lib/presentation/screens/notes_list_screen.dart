@@ -261,7 +261,7 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
               'lib/assets/logo.png',
               width: 40,
               height: 40,
-              filterQuality: FilterQuality.medium,
+              filterQuality: FilterQuality.high,
             ),
             const SizedBox(width: 10),
             Text(

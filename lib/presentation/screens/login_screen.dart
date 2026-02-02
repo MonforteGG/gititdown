@@ -159,6 +159,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
               ),
             ),
           ),
+          // Windows Download Badge
+          const Positioned(
+            bottom: 16,
+            left: 16,
+            child: _WindowsDownloadBadge(),
+          ),
           // GitHub Footer
           const Positioned(
             bottom: 16,
@@ -216,7 +222,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           child: Image.asset(
             'lib/assets/logo.png',
             fit: BoxFit.contain,
-            filterQuality: FilterQuality.medium,
+            filterQuality: FilterQuality.high,
           ),
         ),
         const SizedBox(height: 24),
@@ -569,6 +575,28 @@ class _AnimatedTextFieldState extends State<_AnimatedTextField>
           validator: widget.validator,
           textInputAction: widget.textInputAction,
           onFieldSubmitted: widget.onFieldSubmitted,
+        ),
+      ),
+    );
+  }
+}
+
+class _WindowsDownloadBadge extends StatelessWidget {
+  const _WindowsDownloadBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: () => launchUrl(
+          Uri.parse('https://github.com/MonforteGG/gititdown/releases'),
+          mode: LaunchMode.externalApplication,
+        ),
+        child: Image.asset(
+          'lib/assets/windows-button.png',
+          height: 40,
+          filterQuality: FilterQuality.high,
         ),
       ),
     );

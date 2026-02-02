@@ -37,6 +37,28 @@
   <link rel="manifest" href="manifest.json">
 </head>
 <body>
-  <script src="flutter_bootstrap.js" async></script>
+  <!-- <script src="flutter_bootstrap.js" async></script> -->
+  <script>
+  const serviceWorkerVersion = null;
+  var script = document.createElement('script');
+  script.src = 'flutter.js';
+  script.type = 'application/javascript';
+  script.onload = function() {
+    _flutter.loader.loadEntrypoint({
+      serviceWorker: {
+        serviceWorkerVersion: serviceWorkerVersion,
+      },
+      onEntrypointLoaded: function(engineInitializer) {
+        // AQUÍ es donde forzamos CanvasKit de la forma moderna y correcta
+        engineInitializer.initializeEngine({
+          renderer: "canvaskit" 
+        }).then(function(appRunner) {
+          appRunner.runApp();
+        });
+      }
+    });
+  };
+  document.head.appendChild(script);
+</script>
 </body>
 </html>
