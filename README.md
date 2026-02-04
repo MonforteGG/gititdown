@@ -3,13 +3,18 @@
 [![GitHub release](https://img.shields.io/github/release/MonforteGG/gititdown.svg)](https://github.com/MonforteGG/gititdown/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**Your notes, versioned and everywhere.** A multi-platform notes app built with Flutter that uses GitHub as a backend.
+**Your notes, versioned and everywhere.** A multi-platform markdown notes app built with Flutter that uses GitHub as a backend.
 
 ---
 
 ## Screenshots
 
-*(Add your screenshots here)*
+
+<img width="979" height="975" alt="image" src="https://github.com/user-attachments/assets/35d6b67f-6766-4b21-81d1-5519850ff05e" />
+
+
+<img width="979" height="975" alt="image" src="https://github.com/user-attachments/assets/7d00db7c-d0b3-4710-80a6-0a33a235be31" />
+
 
 ---
 
@@ -151,12 +156,7 @@ flutter build windows --release
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) file for details
+MIT License 
 
 ---
 
-## Acknowledgments
-
-- GitHub REST API v3
-- Flutter Team
-- Riverpod community
