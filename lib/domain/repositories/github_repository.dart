@@ -7,6 +7,9 @@ abstract class IGitHubRepository {
   /// Get folders and markdown files for a repository path
   Future<Either<Failure, List<Note>>> getNotes({String path = ''});
 
+  /// Get all folders and markdown files in the repository
+  Future<Either<Failure, List<Note>>> getVaultEntries();
+
   /// Get a single note with its content
   Future<Either<Failure, Note>> getNote(String path, {String? commitSha});
 

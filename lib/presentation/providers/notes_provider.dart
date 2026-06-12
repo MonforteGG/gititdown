@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/error/failures.dart';
+import '../../core/utils/usecase.dart';
 import '../../domain/entities/note.dart';
 import '../../domain/entities/note_commit.dart';
 import '../../domain/usecases/create_folder.dart';
@@ -15,6 +16,7 @@ import 'dependency_providers.dart';
 enum NotesStatus { initial, loading, loaded, saving, deleting, error }
 
 enum HistoryStatus { initial, loading, loaded, error }
+enum SearchStatus { initial, loading, loaded, error }
 
 class NotesState {
   final NotesStatus status;
@@ -23,6 +25,10 @@ class NotesState {
   final Failure? failure;
   final String? errorMessage;
   final String currentPath;
+  final SearchStatus searchStatus;
+  final String searchQuery;
+  final List<Note> vaultEntries;
+  final List<Note> searchResults;
 
   final HistoryStatus historyStatus;
   final List<NoteCommit> noteHistory;
@@ -35,6 +41,10 @@ class NotesState {
     this.failure,
     this.errorMessage,
     this.currentPath = '',
+    this.searchStatus = SearchStatus.initial,
+    this.searchQuery = '',
+    this.vaultEntries = const [],
+    this.searchResults = const [],
     this.historyStatus = HistoryStatus.initial,
     this.noteHistory = const [],
     this.versionNote,
@@ -47,6 +57,10 @@ class NotesState {
     Failure? failure,
     String? errorMessage,
     String? currentPath,
+    SearchStatus? searchStatus,
+    String? searchQuery,
+    List<Note>? vaultEntries,
+    List<Note>? searchResults,
     bool clearSelectedNote = false,
     HistoryStatus? historyStatus,
     List<NoteCommit>? noteHistory,
@@ -59,6 +73,10 @@ class NotesState {
       failure: failure ?? this.failure,
       errorMessage: errorMessage ?? this.errorMessage,
       currentPath: currentPath ?? this.currentPath,
+      searchStatus: searchStatus ?? this.searchStatus,
+      searchQuery: searchQuery ?? this.searchQuery,
+      vaultEntries: vaultEntries ?? this.vaultEntries,
+      searchResults: searchResults ?? this.searchResults,
       historyStatus: historyStatus ?? this.historyStatus,
       noteHistory: noteHistory ?? this.noteHistory,
       versionNote: versionNote,
@@ -95,6 +113,34 @@ class NotesNotifier extends StateNotifier<NotesState> {
         notes: notes,
         currentPath: targetPath,
       ),
+    );
+  }
+
+  Future<void> loadVaultEntries({bool force = false}) async {
+    if (!force &&
+        state.searchStatus == SearchStatus.loaded &&
+        state.vaultEntries.isNotEmpty) {
+      _applySearchQuery(state.searchQuery);
+      return;
+    }
+
+    state = state.copyWith(searchStatus: SearchStatus.loading, failure: null);
+
+    final getVaultEntriesUseCase = _ref.read(getVaultEntriesUseCaseProvider);
+    final result = await getVaultEntriesUseCase(const NoParams());
+
+    result.fold(
+      (failure) => state = state.copyWith(
+        searchStatus: SearchStatus.error,
+        failure: failure,
+      ),
+      (entries) {
+        state = state.copyWith(
+          searchStatus: SearchStatus.loaded,
+          vaultEntries: entries,
+        );
+        _applySearchQuery(state.searchQuery);
+      },
     );
   }
 
@@ -153,7 +199,9 @@ class NotesNotifier extends StateNotifier<NotesState> {
           status: NotesStatus.loaded,
           notes: updatedNotes,
           selectedNote: savedNote,
+          vaultEntries: _upsertVaultEntry(savedNote),
         );
+        _applySearchQuery(state.searchQuery);
         return true;
       },
     );
@@ -182,7 +230,9 @@ class NotesNotifier extends StateNotifier<NotesState> {
           status: NotesStatus.loaded,
           notes: updatedNotes,
           selectedNote: state.selectedNote?.path == path ? null : state.selectedNote,
+          vaultEntries: state.vaultEntries.where((n) => n.path != path).toList(),
         );
+        _applySearchQuery(state.searchQuery);
         return true;
       },
     );
@@ -210,7 +260,9 @@ class NotesNotifier extends StateNotifier<NotesState> {
         state = state.copyWith(
           status: NotesStatus.loaded,
           notes: updatedNotes,
+          vaultEntries: state.vaultEntries.where((n) => n.path != path).toList(),
         );
+        _applySearchQuery(state.searchQuery);
         return true;
       },
     );
@@ -250,7 +302,9 @@ class NotesNotifier extends StateNotifier<NotesState> {
         state = state.copyWith(
           status: NotesStatus.loaded,
           notes: updatedNotes,
+          vaultEntries: _upsertVaultEntry(folder),
         );
+        _applySearchQuery(state.searchQuery);
         return true;
       },
     );
@@ -266,6 +320,18 @@ class NotesNotifier extends StateNotifier<NotesState> {
 
   void clearError() {
     state = state.copyWith(failure: null, errorMessage: null, status: NotesStatus.loaded);
+  }
+
+  void updateSearchQuery(String query) {
+    state = state.copyWith(searchQuery: query);
+    _applySearchQuery(query);
+  }
+
+  void clearSearch() {
+    state = state.copyWith(
+      searchQuery: '',
+      searchResults: const [],
+    );
   }
 
   Future<void> openDirectory(Note directory) async {
@@ -347,6 +413,42 @@ class NotesNotifier extends StateNotifier<NotesState> {
     state = state.copyWith(
       versionNote: null,
     );
+  }
+
+  List<Note> _upsertVaultEntry(Note entry) {
+    final updatedEntries = List<Note>.from(state.vaultEntries);
+    final existingIndex = updatedEntries.indexWhere((n) => n.path == entry.path);
+
+    if (existingIndex >= 0) {
+      updatedEntries[existingIndex] = entry;
+    } else {
+      updatedEntries.add(entry);
+    }
+
+    updatedEntries.sort((a, b) {
+      if (a.type != b.type) {
+        return a.isDirectory ? -1 : 1;
+      }
+      return a.path.toLowerCase().compareTo(b.path.toLowerCase());
+    });
+
+    return updatedEntries;
+  }
+
+  void _applySearchQuery(String query) {
+    final normalizedQuery = query.trim().toLowerCase();
+    if (normalizedQuery.isEmpty) {
+      state = state.copyWith(searchResults: const []);
+      return;
+    }
+
+    final results = state.vaultEntries.where((entry) {
+      final name = entry.name.toLowerCase();
+      final path = entry.path.toLowerCase();
+      return name.contains(normalizedQuery) || path.contains(normalizedQuery);
+    }).toList();
+
+    state = state.copyWith(searchResults: results);
   }
 }
 

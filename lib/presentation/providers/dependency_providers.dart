@@ -14,6 +14,7 @@ import '../../domain/usecases/delete_note.dart';
 import '../../domain/usecases/get_note.dart';
 import '../../domain/usecases/get_note_history.dart';
 import '../../domain/usecases/get_notes.dart';
+import '../../domain/usecases/get_vault_entries.dart';
 import '../../domain/usecases/login.dart';
 import '../../domain/usecases/logout.dart';
 import '../../domain/usecases/save_note.dart';
@@ -83,6 +84,12 @@ final logoutUseCaseProvider = Provider<Logout>(
 
 final getNotesUseCaseProvider = Provider<GetNotes>(
   (ref) => GetNotes(
+    ref.watch(githubRepositoryProvider),
+  ),
+);
+
+final getVaultEntriesUseCaseProvider = Provider<GetVaultEntries>(
+  (ref) => GetVaultEntries(
     ref.watch(githubRepositoryProvider),
   ),
 );

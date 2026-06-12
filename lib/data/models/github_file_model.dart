@@ -31,6 +31,21 @@ class GitHubFileModel {
     );
   }
 
+  factory GitHubFileModel.fromTreeJson(Map<String, dynamic> json) {
+    final path = json['path'] as String;
+    final segments = path.split('/');
+
+    return GitHubFileModel(
+      name: segments.isNotEmpty ? segments.last : path,
+      path: path,
+      sha: json['sha'] as String? ?? '',
+      content: null,
+      type: (json['type'] as String) == 'tree' ? 'dir' : 'file',
+      size: json['size'] as int?,
+      downloadUrl: null,
+    );
+  }
+
   Map<String, dynamic> toJson() {
     return {
       'name': name,

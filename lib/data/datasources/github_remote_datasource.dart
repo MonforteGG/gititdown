@@ -7,6 +7,7 @@ import '../models/note_commit_model.dart';
 
 abstract class IGitHubRemoteDataSource {
   Future<List<GitHubFileModel>> getFiles(String path);
+  Future<List<GitHubFileModel>> getVaultEntries();
   Future<GitHubFileModel> getFile(String path);
   Future<GitHubFileModel> createOrUpdateFile(String path, String content, String? sha);
   Future<void> createFolder(String path);
@@ -67,6 +68,35 @@ class GitHubRemoteDataSource implements IGitHubRemoteDataSource {
       }
       
       return [];
+    } on DioException catch (e) {
+      throw _handleDioError(e);
+    }
+  }
+
+  @override
+  Future<List<GitHubFileModel>> getVaultEntries() async {
+    try {
+      final response = await _dio.get(
+        '$_repoPath/git/trees/HEAD',
+        queryParameters: {
+          'recursive': '1',
+          ..._freshReadQueryParameters,
+        },
+      );
+
+      final items = (response.data['tree'] as List<dynamic>? ?? const [])
+          .cast<Map<String, dynamic>>()
+          .map(GitHubFileModel.fromTreeJson)
+          .where(
+            (file) =>
+                file.type == 'dir' ||
+                (file.type == 'file' &&
+                    file.name.endsWith(AppConstants.markdownExtension) &&
+                    file.name != AppConstants.folderPlaceholderFileName),
+          )
+          .toList();
+
+      return items;
     } on DioException catch (e) {
       throw _handleDioError(e);
     }

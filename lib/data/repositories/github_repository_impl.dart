@@ -32,6 +32,25 @@ class GitHubRepositoryImpl implements IGitHubRepository {
   }
 
   @override
+  Future<Either<Failure, List<Note>>> getVaultEntries() async {
+    try {
+      final files = await _remoteDataSource.getVaultEntries();
+      final notes = files.map((file) => file.toEntity()).toList()
+        ..sort((a, b) {
+          if (a.type != b.type) {
+            return a.isDirectory ? -1 : 1;
+          }
+          return a.path.toLowerCase().compareTo(b.path.toLowerCase());
+        });
+      return Right(notes);
+    } on Failure catch (e) {
+      return Left(e);
+    } catch (e) {
+      return Left(ServerFailure(message: 'Unexpected error: $e'));
+    }
+  }
+
+  @override
   Future<Either<Failure, Note>> getNote(String path, {String? commitSha}) async {
     try {
       final file = commitSha != null

@@ -22,6 +22,7 @@ class NotesListScreen extends ConsumerStatefulWidget {
 class _NotesListScreenState extends ConsumerState<NotesListScreen>
     with TickerProviderStateMixin {
   late AnimationController _fabController;
+  final TextEditingController _searchController = TextEditingController();
 
   @override
   void initState() {
@@ -43,6 +44,7 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
   @override
   void dispose() {
     _fabController.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -78,6 +80,18 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
 
     if (confirmed == true) {
       await ref.read(authProvider.notifier).logout();
+    }
+  }
+
+  Future<void> _refreshNotes() async {
+    final notifier = ref.read(notesProvider.notifier);
+    final notesState = ref.read(notesProvider);
+
+    await notifier.loadNotes();
+
+    if (notesState.searchStatus != SearchStatus.initial ||
+        notesState.searchQuery.trim().isNotEmpty) {
+      await notifier.loadVaultEntries(force: true);
     }
   }
 
@@ -142,6 +156,10 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
 
   void _openNote(Note note) {
     if (note.isDirectory) {
+      if (ref.read(notesProvider).searchQuery.trim().isNotEmpty) {
+        _searchController.clear();
+        ref.read(notesProvider.notifier).clearSearch();
+      }
       ref.read(notesProvider.notifier).openDirectory(note);
       return;
     }
@@ -217,7 +235,8 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
   @override
   Widget build(BuildContext context) {
     final notesState = ref.watch(notesProvider);
-    final notes = notesState.notes;
+    final isSearching = notesState.searchQuery.trim().isNotEmpty;
+    final notes = isSearching ? notesState.searchResults : notesState.notes;
     final currentPath = notesState.currentPath;
 
     ref.listen(notesProvider, (previous, next) {
@@ -258,6 +277,9 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
                     slivers: [
                       _buildAppBar(context),
                       SliverToBoxAdapter(
+                        child: _buildSearchBar(notesState),
+                      ),
+                      SliverToBoxAdapter(
                         child: _PathBar(
                           currentPath: currentPath,
                           onGoRoot: currentPath.isEmpty
@@ -272,7 +294,7 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
                         child: isLoading && notes.isEmpty
                             ? _buildLoadingState()
                             : notes.isEmpty
-                                ? _buildEmptyState(context, currentPath)
+                                ? _buildEmptyState(context, currentPath, isSearching)
                                 : null,
                       ),
                       if (!isLoading || notes.isNotEmpty)
@@ -358,7 +380,7 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
         IconButton(
           icon: const Icon(Icons.refresh_rounded),
           tooltip: 'Refresh',
-          onPressed: () => ref.read(notesProvider.notifier).loadNotes(),
+          onPressed: _refreshNotes,
         ),
         Padding(
           padding: const EdgeInsets.only(right: 8),
@@ -369,6 +391,50 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildSearchBar(NotesState notesState) {
+    final isSearching = notesState.searchQuery.trim().isNotEmpty;
+    final isSearchLoading = notesState.searchStatus == SearchStatus.loading;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(AppTheme.md, AppTheme.sm, AppTheme.md, 0),
+      child: TextField(
+        controller: _searchController,
+        onChanged: (value) async {
+          ref.read(notesProvider.notifier).updateSearchQuery(value);
+
+          if (value.trim().isNotEmpty && notesState.vaultEntries.isEmpty) {
+            await ref.read(notesProvider.notifier).loadVaultEntries();
+          }
+        },
+        decoration: InputDecoration(
+          hintText: 'Search across the vault',
+          prefixIcon: isSearchLoading
+              ? Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
+                )
+              : const Icon(Icons.search_rounded),
+          suffixIcon: isSearching
+              ? IconButton(
+                  icon: const Icon(Icons.close_rounded),
+                  onPressed: () {
+                    _searchController.clear();
+                    ref.read(notesProvider.notifier).clearSearch();
+                  },
+                )
+              : null,
+        ),
+      ),
     );
   }
 
@@ -400,7 +466,11 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
     );
   }
 
-  Widget _buildEmptyState(BuildContext context, String currentPath) {
+  Widget _buildEmptyState(
+    BuildContext context,
+    String currentPath,
+    bool isSearching,
+  ) {
     return SizedBox(
       height: MediaQuery.of(context).size.height * 0.6,
       child: Center(
@@ -449,24 +519,31 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
             ),
             const SizedBox(height: 24),
             Text(
-              currentPath.isEmpty ? 'No notes yet' : 'This folder is empty',
+              isSearching
+                  ? 'No matches found'
+                  : currentPath.isEmpty
+                      ? 'No notes yet'
+                      : 'This folder is empty',
               style: Theme.of(context).textTheme.headlineSmall,
             ),
             const SizedBox(height: 8),
             Text(
-              currentPath.isEmpty
-                  ? 'Start writing your first note'
-                  : 'Create a markdown note inside this folder',
+              isSearching
+                  ? 'Try another note name or path'
+                  : currentPath.isEmpty
+                      ? 'Start writing your first note'
+                      : 'Create a markdown note inside this folder',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: Theme.of(context).colorScheme.tertiary,
                   ),
             ),
             const SizedBox(height: 24),
-            OutlinedButton.icon(
-              onPressed: _createNewNote,
-              icon: const Icon(Icons.add_rounded, size: 18),
-              label: const Text('Create Note'),
-            ),
+            if (!isSearching)
+              OutlinedButton.icon(
+                onPressed: _createNewNote,
+                icon: const Icon(Icons.add_rounded, size: 18),
+                label: const Text('Create Note'),
+              ),
           ],
         ),
       ),
