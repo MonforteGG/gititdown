@@ -1,4 +1,5 @@
 import 'package:dartz/dartz.dart';
+import 'dart:typed_data';
 import '../../core/error/failures.dart';
 import '../entities/note.dart';
 import '../entities/note_commit.dart';
@@ -9,6 +10,15 @@ abstract class IGitHubRepository {
 
   /// Get all folders and markdown files in the repository
   Future<Either<Failure, List<Note>>> getVaultEntries();
+
+  /// Get a single file metadata
+  Future<Either<Failure, Note>> getFile(String path, {String? commitSha});
+
+  /// Get raw bytes for a single file
+  Future<Either<Failure, Uint8List>> getFileBytes(
+    String path, {
+    String? commitSha,
+  });
 
   /// Get a single note with its content
   Future<Either<Failure, Note>> getNote(String path, {String? commitSha});

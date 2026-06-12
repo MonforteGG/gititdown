@@ -9,6 +9,7 @@ class Note extends Equatable {
   final String content;
   final DateTime? lastModified;
   final NoteType type;
+  final String? downloadUrl;
 
   const Note({
     required this.name,
@@ -17,6 +18,7 @@ class Note extends Equatable {
     this.content = '',
     this.lastModified,
     this.type = NoteType.file,
+    this.downloadUrl,
   });
 
   Note copyWith({
@@ -26,6 +28,7 @@ class Note extends Equatable {
     String? content,
     DateTime? lastModified,
     NoteType? type,
+    String? downloadUrl,
   }) {
     return Note(
       name: name ?? this.name,
@@ -34,12 +37,17 @@ class Note extends Equatable {
       content: content ?? this.content,
       lastModified: lastModified ?? this.lastModified,
       type: type ?? this.type,
+      downloadUrl: downloadUrl ?? this.downloadUrl,
     );
   }
 
   bool get isDirectory => type == NoteType.directory;
 
   bool get isFile => type == NoteType.file;
+
+  bool get isMarkdown => isFile && name.toLowerCase().endsWith('.md');
+
+  bool get isAudio => isFile && name.toLowerCase().endsWith('.mp3');
 
   String get parentPath {
     final lastSlashIndex = path.lastIndexOf('/');
@@ -50,5 +58,5 @@ class Note extends Equatable {
   }
 
   @override
-  List<Object?> get props => [name, path, sha, content, lastModified, type];
+  List<Object?> get props => [name, path, sha, content, lastModified, type, downloadUrl];
 }

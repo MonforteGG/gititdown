@@ -11,6 +11,8 @@ import '../../domain/repositories/local_storage_repository.dart';
 import '../../domain/usecases/create_folder.dart';
 import '../../domain/usecases/delete_folder.dart';
 import '../../domain/usecases/delete_note.dart';
+import '../../domain/usecases/get_file.dart';
+import '../../domain/usecases/get_file_bytes.dart';
 import '../../domain/usecases/get_note.dart';
 import '../../domain/usecases/get_note_history.dart';
 import '../../domain/usecases/get_notes.dart';
@@ -96,6 +98,18 @@ final getVaultEntriesUseCaseProvider = Provider<GetVaultEntries>(
 
 final getNoteUseCaseProvider = Provider<GetNote>(
   (ref) => GetNote(
+    ref.watch(githubRepositoryProvider),
+  ),
+);
+
+final getFileUseCaseProvider = Provider<GetFile>(
+  (ref) => GetFile(
+    ref.watch(githubRepositoryProvider),
+  ),
+);
+
+final getFileBytesUseCaseProvider = Provider<GetFileBytes>(
+  (ref) => GetFileBytes(
     ref.watch(githubRepositoryProvider),
   ),
 );

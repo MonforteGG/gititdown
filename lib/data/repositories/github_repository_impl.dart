@@ -1,4 +1,5 @@
 import 'package:dartz/dartz.dart';
+import 'dart:typed_data';
 import '../../core/error/failures.dart';
 import '../../core/utils/base64_utils.dart';
 import '../../domain/entities/note.dart';
@@ -51,15 +52,48 @@ class GitHubRepositoryImpl implements IGitHubRepository {
   }
 
   @override
+  Future<Either<Failure, Note>> getFile(String path, {String? commitSha}) async {
+    try {
+      final file = commitSha != null
+          ? await _remoteDataSource.getFileAtCommit(path, commitSha)
+          : await _remoteDataSource.getFile(path);
+
+      return Right(file.toEntity());
+    } on Failure catch (e) {
+      return Left(e);
+    } catch (e) {
+      return Left(ServerFailure(message: 'Unexpected error: $e'));
+    }
+  }
+
+  @override
+  Future<Either<Failure, Uint8List>> getFileBytes(
+    String path, {
+    String? commitSha,
+  }) async {
+    try {
+      final bytes = await _remoteDataSource.getFileBytes(
+        path,
+        commitSha: commitSha,
+      );
+
+      return Right(bytes);
+    } on Failure catch (e) {
+      return Left(e);
+    } catch (e) {
+      return Left(ServerFailure(message: 'Unexpected error: $e'));
+    }
+  }
+
+  @override
   Future<Either<Failure, Note>> getNote(String path, {String? commitSha}) async {
     try {
       final file = commitSha != null
           ? await _remoteDataSource.getFileAtCommit(path, commitSha)
           : await _remoteDataSource.getFile(path);
 
-      // Decode content if present
       String decodedContent = '';
-      if (file.content != null) {
+      if (file.content != null && file.name.toLowerCase().endsWith('.md')) {
         decodedContent = Base64Utils.decode(file.content!);
       }
 

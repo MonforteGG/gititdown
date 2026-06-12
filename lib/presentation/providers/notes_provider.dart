@@ -403,7 +403,7 @@ class NotesNotifier extends StateNotifier<NotesState> {
 
     final fileEntries = state.vaultEntries.where((entry) => entry.isFile).toList();
     final missingEntries = fileEntries
-        .where((entry) => !state.noteContentCache.containsKey(entry.path))
+        .where((entry) => entry.isMarkdown && !state.noteContentCache.containsKey(entry.path))
         .toList();
 
     if (missingEntries.isEmpty) {

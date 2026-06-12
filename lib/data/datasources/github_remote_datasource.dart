@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'dart:typed_data';
 import '../../config/constants.dart';
 import '../../core/error/failures.dart';
 import '../../core/utils/base64_utils.dart';
@@ -9,6 +10,7 @@ abstract class IGitHubRemoteDataSource {
   Future<List<GitHubFileModel>> getFiles(String path);
   Future<List<GitHubFileModel>> getVaultEntries();
   Future<GitHubFileModel> getFile(String path);
+  Future<Uint8List> getFileBytes(String path, {String? commitSha});
   Future<GitHubFileModel> createOrUpdateFile(String path, String content, String? sha);
   Future<void> createFolder(String path);
   Future<void> deleteFolder(String path);
@@ -61,7 +63,8 @@ class GitHubRemoteDataSource implements IGitHubRemoteDataSource {
               (file) =>
                   file.type == 'dir' ||
                   (file.type == 'file' &&
-                      file.name.endsWith(AppConstants.markdownExtension)),
+                      (file.name.endsWith(AppConstants.markdownExtension) ||
+                          file.name.endsWith(AppConstants.audioExtension))),
             )
             .toList();
         return files;
@@ -91,7 +94,8 @@ class GitHubRemoteDataSource implements IGitHubRemoteDataSource {
             (file) =>
                 file.type == 'dir' ||
                 (file.type == 'file' &&
-                    file.name.endsWith(AppConstants.markdownExtension) &&
+                    (file.name.endsWith(AppConstants.markdownExtension) ||
+                        file.name.endsWith(AppConstants.audioExtension)) &&
                     file.name != AppConstants.folderPlaceholderFileName),
           )
           .toList();
@@ -113,6 +117,30 @@ class GitHubRemoteDataSource implements IGitHubRemoteDataSource {
       final file = GitHubFileModel.fromJson(response.data as Map<String, dynamic>);
 
       return file;
+    } on DioException catch (e) {
+      throw _handleDioError(e);
+    }
+  }
+
+  @override
+  Future<Uint8List> getFileBytes(String path, {String? commitSha}) async {
+    try {
+      final response = await _dio.get<List<int>>(
+        '$_repoPath/contents/$path',
+        queryParameters: {
+          ..._freshReadQueryParameters,
+          if (commitSha != null) 'ref': commitSha,
+        },
+        options: Options(
+          responseType: ResponseType.bytes,
+          headers: {
+            ...AppConstants.defaultHeaders,
+            'Accept': 'application/vnd.github.raw+json',
+          },
+        ),
+      );
+
+      return Uint8List.fromList(response.data ?? const []);
     } on DioException catch (e) {
       throw _handleDioError(e);
     }

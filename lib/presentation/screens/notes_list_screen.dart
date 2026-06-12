@@ -5,6 +5,7 @@ import '../../config/theme.dart';
 import '../../domain/entities/note.dart';
 import '../../presentation/providers/auth_provider.dart';
 import '../../presentation/providers/notes_provider.dart';
+import 'audio_player_screen.dart';
 import '../widgets/github_footer.dart';
 import '../widgets/notebook_background.dart';
 import 'editor_screen.dart';
@@ -164,6 +165,15 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
       return;
     }
 
+    if (note.isAudio) {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) => AudioPlayerScreen(note: note),
+        ),
+      );
+      return;
+    }
+
     Navigator.of(context).push(
       PageRouteBuilder(
         pageBuilder: (context, animation, secondaryAnimation) =>
@@ -230,6 +240,12 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
       return name.substring(0, name.length - 3);
     }
     return name;
+  }
+
+  String _fileBadgeLabel(Note note) {
+    if (note.isAudio) return 'mp3';
+    if (note.isMarkdown) return 'md';
+    return 'file';
   }
 
   @override
@@ -316,6 +332,7 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
                                   onTap: () => _openNote(note),
                                   onDelete: () => _deleteNote(note),
                                   formatFileName: _formatFileName,
+                                  fileBadgeLabel: _fileBadgeLabel(note),
                                   searchMetadata:
                                       isSearching ? searchMetadata[note.path] : null,
                                 );
@@ -566,6 +583,7 @@ class _NoteCard extends StatefulWidget {
   final VoidCallback onTap;
   final VoidCallback? onDelete;
   final String Function(String) formatFileName;
+  final String fileBadgeLabel;
   final SearchMatchMetadata? searchMetadata;
 
   const _NoteCard({
@@ -574,6 +592,7 @@ class _NoteCard extends StatefulWidget {
     required this.onTap,
     required this.onDelete,
     required this.formatFileName,
+    required this.fileBadgeLabel,
     required this.searchMetadata,
   });
 
@@ -689,7 +708,9 @@ class _NoteCardState extends State<_NoteCard>
                               Icon(
                                 isDirectory
                                     ? Icons.folder_open_rounded
-                                    : Icons.description_outlined,
+                                    : widget.note.isAudio
+                                        ? Icons.graphic_eq_rounded
+                                        : Icons.description_outlined,
                                 size: 22,
                                 color: Theme.of(context).colorScheme.primary,
                               ),
@@ -707,7 +728,7 @@ class _NoteCardState extends State<_NoteCard>
                                       borderRadius: BorderRadius.circular(2),
                                     ),
                                     child: Text(
-                                      'md',
+                                      widget.fileBadgeLabel,
                                       style: GoogleFonts.jetBrainsMono(
                                         fontSize: 7,
                                         fontWeight: FontWeight.w700,

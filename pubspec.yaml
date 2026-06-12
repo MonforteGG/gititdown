@@ -31,6 +31,7 @@ dependencies:
   # URL launching
   url_launcher: ^6.2.2
   shared_preferences: ^2.5.4
+  audioplayers: ^6.7.1
 
 dev_dependencies:
   flutter_test:

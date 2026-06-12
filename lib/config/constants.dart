@@ -21,6 +21,7 @@ class AppConstants {
   
   // File Extensions
   static const String markdownExtension = '.md';
+  static const String audioExtension = '.mp3';
   
   // Default Values
   static const String defaultCommitMessage = 'Update via GitItDown';
