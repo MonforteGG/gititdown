@@ -8,6 +8,7 @@ import '../../config/theme.dart';
 import '../../core/error/failures.dart';
 import '../../domain/entities/note.dart';
 import '../../presentation/providers/notes_provider.dart';
+import 'audio_player_screen.dart';
 import 'history_screen.dart';
 import '../widgets/github_footer.dart';
 import '../widgets/notebook_background.dart';
@@ -422,7 +423,9 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
 
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (context) => EditorScreen(note: targetNote),
+        builder: (context) => targetNote.isAudio
+            ? AudioPlayerScreen(note: targetNote)
+            : EditorScreen(note: targetNote),
       ),
     );
   }

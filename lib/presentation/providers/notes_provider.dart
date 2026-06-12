@@ -170,8 +170,21 @@ class NotesNotifier extends StateNotifier<NotesState> {
     final target = rawTarget.trim();
     if (target.isEmpty) return null;
 
-    final normalizedTarget = target.endsWith('.md') ? target : '$target.md';
+    final hasExplicitExtension =
+        target.contains('.') && !target.endsWith('.');
+    final normalizedTarget = hasExplicitExtension ? target : '$target.md';
     final normalizedLower = normalizedTarget.toLowerCase();
+    final rawTargetLower = target.toLowerCase();
+
+    Note? exactRawPathMatch;
+    try {
+      exactRawPathMatch = state.vaultEntries.firstWhere(
+        (entry) => entry.isFile && entry.path.toLowerCase() == rawTargetLower,
+      );
+    } catch (_) {
+      exactRawPathMatch = null;
+    }
+    if (exactRawPathMatch != null) return exactRawPathMatch;
 
     Note? exactPathMatch;
     try {
@@ -183,11 +196,16 @@ class NotesNotifier extends StateNotifier<NotesState> {
     }
     if (exactPathMatch != null) return exactPathMatch;
 
-    final fileName = normalizedTarget.split('/').last.toLowerCase();
+    final fileName = (hasExplicitExtension ? target : normalizedTarget)
+        .split('/')
+        .last
+        .toLowerCase();
     final candidates = state.vaultEntries.where((entry) {
       if (!entry.isFile) return false;
       final entryPath = entry.path.toLowerCase();
-      return entryPath == normalizedLower || entryPath.endsWith('/$fileName');
+      return entryPath == rawTargetLower ||
+          entryPath == normalizedLower ||
+          entryPath.endsWith('/$fileName');
     }).toList();
 
     if (candidates.isEmpty) return null;
