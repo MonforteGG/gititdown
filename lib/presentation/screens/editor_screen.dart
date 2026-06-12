@@ -35,6 +35,8 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   bool _hasChanges = false;
   bool _isLoadingContent = false;
   Note? _loadedNote;
+  String? _activeWikiQuery;
+  List<Note> _wikiSuggestions = const [];
 
   late AnimationController _fadeController;
   late Animation<double> _fadeAnimation;
@@ -69,6 +71,10 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
         _loadNoteContent();
       });
     }
+
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      ref.read(notesProvider.notifier).loadVaultEntries();
+    });
   }
 
   Future<void> _loadNoteContent() async {
@@ -104,6 +110,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     setState(() {
       _hasChanges = true;
     });
+    _updateWikiSuggestions();
   }
 
   String _stripExtension(String name) {
@@ -231,6 +238,93 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   void _toggleMode(EditorMode mode) {
     setState(() {
       _mode = mode;
+    });
+  }
+
+  void _updateWikiSuggestions() {
+    final selection = _contentController.selection;
+    if (!selection.isValid) {
+      if (_activeWikiQuery != null || _wikiSuggestions.isNotEmpty) {
+        setState(() {
+          _activeWikiQuery = null;
+          _wikiSuggestions = const [];
+        });
+      }
+      return;
+    }
+
+    final cursorIndex = selection.baseOffset;
+    if (cursorIndex < 0) return;
+
+    final text = _contentController.text;
+    final textBeforeCursor = text.substring(0, cursorIndex);
+    final openIndex = textBeforeCursor.lastIndexOf('[[');
+    if (openIndex == -1) {
+      if (_activeWikiQuery != null || _wikiSuggestions.isNotEmpty) {
+        setState(() {
+          _activeWikiQuery = null;
+          _wikiSuggestions = const [];
+        });
+      }
+      return;
+    }
+
+    final afterOpen = textBeforeCursor.substring(openIndex + 2);
+    if (afterOpen.contains(']]') || afterOpen.contains('\n') || afterOpen.contains('|')) {
+      if (_activeWikiQuery != null || _wikiSuggestions.isNotEmpty) {
+        setState(() {
+          _activeWikiQuery = null;
+          _wikiSuggestions = const [];
+        });
+      }
+      return;
+    }
+
+    final query = afterOpen.trim();
+    final vaultEntries = ref.read(notesProvider).vaultEntries;
+    final fileEntries = vaultEntries.where((entry) => entry.isFile).toList();
+    final normalizedQuery = query.toLowerCase();
+
+    final suggestions = fileEntries.where((entry) {
+      if (normalizedQuery.isEmpty) return true;
+      final displayPath = entry.path.toLowerCase();
+      final displayName = _stripExtension(entry.name).toLowerCase();
+      return displayName.contains(normalizedQuery) ||
+          displayPath.contains(normalizedQuery);
+    }).take(8).toList();
+
+    setState(() {
+      _activeWikiQuery = query;
+      _wikiSuggestions = suggestions;
+    });
+  }
+
+  void _applyWikiSuggestion(Note note) {
+    final selection = _contentController.selection;
+    if (!selection.isValid) return;
+
+    final cursorIndex = selection.baseOffset;
+    final text = _contentController.text;
+    final textBeforeCursor = text.substring(0, cursorIndex);
+    final openIndex = textBeforeCursor.lastIndexOf('[[');
+    if (openIndex == -1) return;
+
+    final displayTarget = note.path.endsWith('.md')
+        ? note.path.substring(0, note.path.length - 3)
+        : note.path;
+    final replacement = '[[$displayTarget]]';
+    final updatedText =
+        text.substring(0, openIndex) + replacement + text.substring(cursorIndex);
+    final newCursorOffset = openIndex + replacement.length;
+
+    _contentController.value = TextEditingValue(
+      text: updatedText,
+      selection: TextSelection.collapsed(offset: newCursorOffset),
+    );
+
+    setState(() {
+      _wikiSuggestions = const [];
+      _activeWikiQuery = null;
     });
   }
 
@@ -686,36 +780,94 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   }
 
   Widget _buildEditMode(bool isSaving) {
-    return Container(
+    return Stack(
       key: const ValueKey('edit'),
-      padding: const EdgeInsets.symmetric(horizontal: AppTheme.md),
-      child: TextField(
-        controller: _contentController,
-        enabled: !isSaving,
-        maxLines: null,
-        expands: true,
-        textAlignVertical: TextAlignVertical.top,
-        style: GoogleFonts.jetBrainsMono(
-          fontSize: 14,
-          height: 1.7,
-          color: Theme.of(context).colorScheme.onSurface,
-        ).copyWith(fontFamilyFallback: _fontFallback),
-        decoration: InputDecoration(
-          hintText: 'Start writing in Markdown...\n\n# Heading\n**bold** and *italic*\n- List item',
-          hintStyle: GoogleFonts.jetBrainsMono(
-            fontSize: 14,
-            height: 1.7,
-            color: Theme.of(context).colorScheme.tertiary.withOpacity(0.4),
-          ).copyWith(fontFamilyFallback: _fontFallback),
-          border: InputBorder.none,
-          enabledBorder: InputBorder.none,
-          focusedBorder: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(vertical: AppTheme.md),
-          filled: false,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: AppTheme.md),
+          child: TextField(
+            controller: _contentController,
+            enabled: !isSaving,
+            maxLines: null,
+            expands: true,
+            textAlignVertical: TextAlignVertical.top,
+            style: GoogleFonts.jetBrainsMono(
+              fontSize: 14,
+              height: 1.7,
+              color: Theme.of(context).colorScheme.onSurface,
+            ).copyWith(fontFamilyFallback: _fontFallback),
+            decoration: InputDecoration(
+              hintText:
+                  'Start writing in Markdown...\n\n# Heading\n**bold** and *italic*\n- List item\n[[link a note]]',
+              hintStyle: GoogleFonts.jetBrainsMono(
+                fontSize: 14,
+                height: 1.7,
+                color: Theme.of(context).colorScheme.tertiary.withOpacity(0.4),
+              ).copyWith(fontFamilyFallback: _fontFallback),
+              border: InputBorder.none,
+              enabledBorder: InputBorder.none,
+              focusedBorder: InputBorder.none,
+              contentPadding: const EdgeInsets.symmetric(vertical: AppTheme.md),
+              filled: false,
+            ),
+            cursorColor: Theme.of(context).colorScheme.primary,
+            cursorWidth: 2,
+          ),
         ),
-        cursorColor: Theme.of(context).colorScheme.primary,
-        cursorWidth: 2,
-      ),
+        if (_activeWikiQuery != null && _wikiSuggestions.isNotEmpty)
+          Positioned(
+            left: AppTheme.md,
+            right: AppTheme.md,
+            bottom: AppTheme.md,
+            child: Material(
+              elevation: 8,
+              borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+              child: Container(
+                constraints: const BoxConstraints(maxHeight: 240),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+                  border: Border.all(
+                    color: Theme.of(context).colorScheme.outline.withOpacity(0.25),
+                  ),
+                ),
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: _wikiSuggestions.length,
+                  separatorBuilder: (_, __) => Divider(
+                    height: 1,
+                    color: Theme.of(context).colorScheme.outline.withOpacity(0.15),
+                  ),
+                  itemBuilder: (context, index) {
+                    final suggestion = _wikiSuggestions[index];
+                    final displayTarget = suggestion.path.endsWith('.md')
+                        ? suggestion.path.substring(0, suggestion.path.length - 3)
+                        : suggestion.path;
+
+                    return ListTile(
+                      dense: true,
+                      leading: Icon(
+                        Icons.link_rounded,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                      title: Text(
+                        _stripExtension(suggestion.name),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      subtitle: Text(
+                        displayTarget,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      onTap: () => _applyWikiSuggestion(suggestion),
+                    );
+                  },
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }
