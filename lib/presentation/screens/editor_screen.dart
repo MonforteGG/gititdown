@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -37,6 +38,8 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   Note? _loadedNote;
   String? _activeWikiQuery;
   List<Note> _wikiSuggestions = const [];
+  int _selectedWikiSuggestionIndex = 0;
+  late FocusNode _editorFocusNode;
 
   late AnimationController _fadeController;
   late Animation<double> _fadeAnimation;
@@ -44,6 +47,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   @override
   void initState() {
     super.initState();
+    _editorFocusNode = FocusNode();
     _contentController = TextEditingController(text: widget.note?.content ?? '');
     _nameController = TextEditingController(
       text: widget.note != null ? _stripExtension(widget.note!.name) : '',
@@ -101,6 +105,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   @override
   void dispose() {
     _fadeController.dispose();
+    _editorFocusNode.dispose();
     _contentController.dispose();
     _nameController.dispose();
     super.dispose();
@@ -248,6 +253,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
         setState(() {
           _activeWikiQuery = null;
           _wikiSuggestions = const [];
+          _selectedWikiSuggestionIndex = 0;
         });
       }
       return;
@@ -264,6 +270,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
         setState(() {
           _activeWikiQuery = null;
           _wikiSuggestions = const [];
+          _selectedWikiSuggestionIndex = 0;
         });
       }
       return;
@@ -275,6 +282,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
         setState(() {
           _activeWikiQuery = null;
           _wikiSuggestions = const [];
+          _selectedWikiSuggestionIndex = 0;
         });
       }
       return;
@@ -296,6 +304,9 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     setState(() {
       _activeWikiQuery = query;
       _wikiSuggestions = suggestions;
+      _selectedWikiSuggestionIndex = suggestions.isEmpty
+          ? 0
+          : _selectedWikiSuggestionIndex.clamp(0, suggestions.length - 1);
     });
   }
 
@@ -325,7 +336,52 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     setState(() {
       _wikiSuggestions = const [];
       _activeWikiQuery = null;
+      _selectedWikiSuggestionIndex = 0;
     });
+  }
+
+  KeyEventResult _handleEditorKeyEvent(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent) {
+      return KeyEventResult.ignored;
+    }
+
+    if (_wikiSuggestions.isEmpty) {
+      return KeyEventResult.ignored;
+    }
+
+    if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+      setState(() {
+        _selectedWikiSuggestionIndex =
+            (_selectedWikiSuggestionIndex + 1) % _wikiSuggestions.length;
+      });
+      return KeyEventResult.handled;
+    }
+
+    if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+      setState(() {
+        _selectedWikiSuggestionIndex =
+            (_selectedWikiSuggestionIndex - 1 + _wikiSuggestions.length) %
+                _wikiSuggestions.length;
+      });
+      return KeyEventResult.handled;
+    }
+
+    if (event.logicalKey == LogicalKeyboardKey.enter ||
+        event.logicalKey == LogicalKeyboardKey.tab) {
+      _applyWikiSuggestion(_wikiSuggestions[_selectedWikiSuggestionIndex]);
+      return KeyEventResult.handled;
+    }
+
+    if (event.logicalKey == LogicalKeyboardKey.escape) {
+      setState(() {
+        _wikiSuggestions = const [];
+        _activeWikiQuery = null;
+        _selectedWikiSuggestionIndex = 0;
+      });
+      return KeyEventResult.handled;
+    }
+
+    return KeyEventResult.ignored;
   }
 
   String _normalizeMarkdownForPreview(String content) {
@@ -785,33 +841,37 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
       children: [
         Container(
           padding: const EdgeInsets.symmetric(horizontal: AppTheme.md),
-          child: TextField(
-            controller: _contentController,
-            enabled: !isSaving,
-            maxLines: null,
-            expands: true,
-            textAlignVertical: TextAlignVertical.top,
-            style: GoogleFonts.jetBrainsMono(
-              fontSize: 14,
-              height: 1.7,
-              color: Theme.of(context).colorScheme.onSurface,
-            ).copyWith(fontFamilyFallback: _fontFallback),
-            decoration: InputDecoration(
-              hintText:
-                  'Start writing in Markdown...\n\n# Heading\n**bold** and *italic*\n- List item\n[[link a note]]',
-              hintStyle: GoogleFonts.jetBrainsMono(
+          child: Focus(
+            focusNode: _editorFocusNode,
+            onKeyEvent: _handleEditorKeyEvent,
+            child: TextField(
+              controller: _contentController,
+              enabled: !isSaving,
+              maxLines: null,
+              expands: true,
+              textAlignVertical: TextAlignVertical.top,
+              style: GoogleFonts.jetBrainsMono(
                 fontSize: 14,
                 height: 1.7,
-                color: Theme.of(context).colorScheme.tertiary.withOpacity(0.4),
+                color: Theme.of(context).colorScheme.onSurface,
               ).copyWith(fontFamilyFallback: _fontFallback),
-              border: InputBorder.none,
-              enabledBorder: InputBorder.none,
-              focusedBorder: InputBorder.none,
-              contentPadding: const EdgeInsets.symmetric(vertical: AppTheme.md),
-              filled: false,
+              decoration: InputDecoration(
+                hintText:
+                    'Start writing in Markdown...\n\n# Heading\n**bold** and *italic*\n- List item\n[[link a note]]',
+                hintStyle: GoogleFonts.jetBrainsMono(
+                  fontSize: 14,
+                  height: 1.7,
+                  color: Theme.of(context).colorScheme.tertiary.withOpacity(0.4),
+                ).copyWith(fontFamilyFallback: _fontFallback),
+                border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
+                contentPadding: const EdgeInsets.symmetric(vertical: AppTheme.md),
+                filled: false,
+              ),
+              cursorColor: Theme.of(context).colorScheme.primary,
+              cursorWidth: 2,
             ),
-            cursorColor: Theme.of(context).colorScheme.primary,
-            cursorWidth: 2,
           ),
         ),
         if (_activeWikiQuery != null && _wikiSuggestions.isNotEmpty)
@@ -846,6 +906,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
 
                     return ListTile(
                       dense: true,
+                      selected: index == _selectedWikiSuggestionIndex,
                       leading: Icon(
                         Icons.link_rounded,
                         color: Theme.of(context).colorScheme.primary,
