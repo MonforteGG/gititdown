@@ -13,12 +13,16 @@ class GitHubRepositoryImpl implements IGitHubRepository {
       : _remoteDataSource = remoteDataSource;
 
   @override
-  Future<Either<Failure, List<Note>>> getNotes() async {
+  Future<Either<Failure, List<Note>>> getNotes({String path = ''}) async {
     try {
-      final files = await _remoteDataSource.getFiles('');
-      final notes = files.map((file) => file.toEntity()).toList();
-      // Sort alphabetically by name
-      notes.sort((a, b) => a.name.compareTo(b.name));
+      final files = await _remoteDataSource.getFiles(path);
+      final notes = files.map((file) => file.toEntity()).toList()
+        ..sort((a, b) {
+          if (a.type != b.type) {
+            return a.isDirectory ? -1 : 1;
+          }
+          return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+        });
       return Right(notes);
     } on Failure catch (e) {
       return Left(e);
@@ -58,6 +62,41 @@ class GitHubRepositoryImpl implements IGitHubRepository {
       );
       
       return Right(updatedFile.toEntity(decodedContent: note.content));
+    } on Failure catch (e) {
+      return Left(e);
+    } catch (e) {
+      return Left(ServerFailure(message: 'Unexpected error: $e'));
+    }
+  }
+
+  @override
+  Future<Either<Failure, Note>> createFolder(String path) async {
+    try {
+      await _remoteDataSource.createFolder(path);
+
+      final segments = path.split('/');
+      final folderName = segments.isNotEmpty ? segments.last : path;
+
+      return Right(
+        Note(
+          name: folderName,
+          path: path,
+          sha: '',
+          type: NoteType.directory,
+        ),
+      );
+    } on Failure catch (e) {
+      return Left(e);
+    } catch (e) {
+      return Left(ServerFailure(message: 'Unexpected error: $e'));
+    }
+  }
+
+  @override
+  Future<Either<Failure, void>> deleteFolder(String path) async {
+    try {
+      await _remoteDataSource.deleteFolder(path);
+      return const Right(null);
     } on Failure catch (e) {
       return Left(e);
     } catch (e) {

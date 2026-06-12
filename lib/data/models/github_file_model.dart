@@ -49,6 +49,7 @@ class GitHubFileModel {
       path: path,
       sha: sha,
       content: decodedContent,
+      type: type == 'dir' ? NoteType.directory : NoteType.file,
     );
   }
 }

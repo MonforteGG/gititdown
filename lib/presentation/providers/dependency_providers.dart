@@ -8,6 +8,8 @@ import '../../data/repositories/local_storage_repository_impl.dart';
 import '../../domain/entities/user_config.dart';
 import '../../domain/repositories/github_repository.dart';
 import '../../domain/repositories/local_storage_repository.dart';
+import '../../domain/usecases/create_folder.dart';
+import '../../domain/usecases/delete_folder.dart';
 import '../../domain/usecases/delete_note.dart';
 import '../../domain/usecases/get_note.dart';
 import '../../domain/usecases/get_note_history.dart';
@@ -99,6 +101,18 @@ final saveNoteUseCaseProvider = Provider<SaveNote>(
 
 final deleteNoteUseCaseProvider = Provider<DeleteNote>(
   (ref) => DeleteNote(
+    ref.watch(githubRepositoryProvider),
+  ),
+);
+
+final createFolderUseCaseProvider = Provider<CreateFolder>(
+  (ref) => CreateFolder(
+    ref.watch(githubRepositoryProvider),
+  ),
+);
+
+final deleteFolderUseCaseProvider = Provider<DeleteFolder>(
+  (ref) => DeleteFolder(
     ref.watch(githubRepositoryProvider),
   ),
 );

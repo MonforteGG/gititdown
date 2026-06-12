@@ -22,7 +22,6 @@ class NotesListScreen extends ConsumerStatefulWidget {
 class _NotesListScreenState extends ConsumerState<NotesListScreen>
     with TickerProviderStateMixin {
   late AnimationController _fabController;
-  late Animation<double> _fabScale;
 
   @override
   void initState() {
@@ -30,10 +29,6 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
     _fabController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 400),
-    );
-    _fabScale = CurvedAnimation(
-      parent: _fabController,
-      curve: Curves.elasticOut,
     );
 
     Future.microtask(() {
@@ -111,7 +106,46 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
     );
   }
 
+  Future<void> _createFolder() async {
+    final folderName = await showDialog<String>(
+      context: context,
+      builder: (context) => const _CreateFolderDialog(),
+    );
+
+    if (folderName == null || folderName.trim().isEmpty) {
+      return;
+    }
+
+    if (folderName.contains('/') || folderName.contains('\\')) {
+      _showErrorSnackbar('Folder name cannot contain slashes');
+      return;
+    }
+
+    final success =
+        await ref.read(notesProvider.notifier).createFolder(folderName.trim());
+
+    if (!mounted) return;
+
+    if (success) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Folder created'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } else {
+      final error =
+          ref.read(notesProvider).failure?.message ?? 'Failed to create folder';
+      _showErrorSnackbar(error);
+    }
+  }
+
   void _openNote(Note note) {
+    if (note.isDirectory) {
+      ref.read(notesProvider.notifier).openDirectory(note);
+      return;
+    }
+
     Navigator.of(context).push(
       PageRouteBuilder(
         pageBuilder: (context, animation, secondaryAnimation) =>
@@ -137,6 +171,25 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
   }
 
   Future<void> _deleteNote(Note note) async {
+    if (note.isDirectory) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => _DeleteFolderDialog(folderName: note.name),
+      );
+
+      if (confirmed == true) {
+        final success =
+            await ref.read(notesProvider.notifier).deleteFolder(note.path);
+
+        if (!success && mounted) {
+          final error = ref.read(notesProvider).failure?.message ??
+              'Failed to delete folder';
+          _showErrorSnackbar(error);
+        }
+      }
+      return;
+    }
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => _DeleteNoteDialog(noteName: _formatFileName(note.name)),
@@ -165,6 +218,7 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
   Widget build(BuildContext context) {
     final notesState = ref.watch(notesProvider);
     final notes = notesState.notes;
+    final currentPath = notesState.currentPath;
 
     ref.listen(notesProvider, (previous, next) {
       if (next.status == NotesStatus.error && next.failure != null) {
@@ -204,10 +258,21 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
                     slivers: [
                       _buildAppBar(context),
                       SliverToBoxAdapter(
+                        child: _PathBar(
+                          currentPath: currentPath,
+                          onGoRoot: currentPath.isEmpty
+                              ? null
+                              : () => ref.read(notesProvider.notifier).navigateToRoot(),
+                          onGoUp: currentPath.isEmpty
+                              ? null
+                              : () => ref.read(notesProvider.notifier).navigateUp(),
+                        ),
+                      ),
+                      SliverToBoxAdapter(
                         child: isLoading && notes.isEmpty
                             ? _buildLoadingState()
                             : notes.isEmpty
-                                ? _buildEmptyState(context)
+                                ? _buildEmptyState(context, currentPath)
                                 : null,
                       ),
                       if (!isLoading || notes.isNotEmpty)
@@ -281,6 +346,11 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
       ),
       actions: [
         IconButton(
+          icon: const Icon(Icons.create_new_folder_rounded),
+          tooltip: 'New Folder',
+          onPressed: _createFolder,
+        ),
+        IconButton(
           icon: Icon(Icons.add_rounded, color: AppTheme.brandOrange),
           tooltip: 'New Note',
           onPressed: _createNewNote,
@@ -330,7 +400,7 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
     );
   }
 
-  Widget _buildEmptyState(BuildContext context) {
+  Widget _buildEmptyState(BuildContext context, String currentPath) {
     return SizedBox(
       height: MediaQuery.of(context).size.height * 0.6,
       child: Center(
@@ -379,12 +449,14 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
             ),
             const SizedBox(height: 24),
             Text(
-              'No notes yet',
+              currentPath.isEmpty ? 'No notes yet' : 'This folder is empty',
               style: Theme.of(context).textTheme.headlineSmall,
             ),
             const SizedBox(height: 8),
             Text(
-              'Start writing your first note',
+              currentPath.isEmpty
+                  ? 'Start writing your first note'
+                  : 'Create a markdown note inside this folder',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: Theme.of(context).colorScheme.tertiary,
                   ),
@@ -407,7 +479,7 @@ class _NoteCard extends StatefulWidget {
   final Note note;
   final int index;
   final VoidCallback onTap;
-  final VoidCallback onDelete;
+  final VoidCallback? onDelete;
   final String Function(String) formatFileName;
 
   const _NoteCard({
@@ -483,6 +555,8 @@ class _NoteCardState extends State<_NoteCard>
 
   @override
   Widget build(BuildContext context) {
+    final isDirectory = widget.note.isDirectory;
+
     return FadeTransition(
       opacity: _fadeAnimation,
       child: SlideTransition(
@@ -526,33 +600,35 @@ class _NoteCardState extends State<_NoteCard>
                             alignment: Alignment.center,
                             children: [
                               Icon(
-                                Icons.description_outlined,
+                                isDirectory
+                                    ? Icons.folder_open_rounded
+                                    : Icons.description_outlined,
                                 size: 22,
                                 color: Theme.of(context).colorScheme.primary,
                               ),
-                              // Markdown indicator
-                              Positioned(
-                                bottom: 6,
-                                right: 6,
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 3,
-                                    vertical: 1,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: Theme.of(context).colorScheme.primary,
-                                    borderRadius: BorderRadius.circular(2),
-                                  ),
-                                  child: Text(
-                                    'md',
-                                    style: GoogleFonts.jetBrainsMono(
-                                      fontSize: 7,
-                                      fontWeight: FontWeight.w700,
-                                      color: Theme.of(context).colorScheme.onPrimary,
-                                    ).copyWith(fontFamilyFallback: _fontFallback),
+                              if (!isDirectory)
+                                Positioned(
+                                  bottom: 6,
+                                  right: 6,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 3,
+                                      vertical: 1,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Theme.of(context).colorScheme.primary,
+                                      borderRadius: BorderRadius.circular(2),
+                                    ),
+                                    child: Text(
+                                      'md',
+                                      style: GoogleFonts.jetBrainsMono(
+                                        fontSize: 7,
+                                        fontWeight: FontWeight.w700,
+                                        color: Theme.of(context).colorScheme.onPrimary,
+                                      ).copyWith(fontFamilyFallback: _fontFallback),
+                                    ),
                                   ),
                                 ),
-                              ),
                             ],
                           ),
                         ),
@@ -563,14 +639,24 @@ class _NoteCardState extends State<_NoteCard>
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                widget.formatFileName(widget.note.name),
+                                isDirectory
+                                    ? widget.note.name
+                                    : widget.formatFileName(widget.note.name),
                                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
                                       fontWeight: FontWeight.w600,
                                     ),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                               ),
-                              if (widget.note.lastModified != null) ...[
+                              if (isDirectory) ...[
+                                const SizedBox(height: 4),
+                                Text(
+                                  widget.note.path,
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ] else if (widget.note.lastModified != null) ...[
                                 const SizedBox(height: 4),
                                 Row(
                                   children: [
@@ -591,25 +677,26 @@ class _NoteCardState extends State<_NoteCard>
                           ),
                         ),
                         // Delete Button
-                        AnimatedOpacity(
-                          opacity: _isHovered ? 1.0 : 0.6,
-                          duration: const Duration(milliseconds: 200),
-                          child: IconButton(
-                            icon: Icon(
-                              Icons.delete_outline_rounded,
-                              size: 20,
-                              color: Theme.of(context).colorScheme.tertiary,
-                            ),
-                            tooltip: 'Delete',
-                            onPressed: widget.onDelete,
-                            style: IconButton.styleFrom(
-                              backgroundColor: Theme.of(context)
-                                  .colorScheme
-                                  .error
-                                  .withOpacity(0.0),
+                        if (widget.onDelete != null)
+                          AnimatedOpacity(
+                            opacity: _isHovered ? 1.0 : 0.6,
+                            duration: const Duration(milliseconds: 200),
+                            child: IconButton(
+                              icon: Icon(
+                                Icons.delete_outline_rounded,
+                                size: 20,
+                                color: Theme.of(context).colorScheme.tertiary,
+                              ),
+                              tooltip: 'Delete',
+                              onPressed: widget.onDelete,
+                              style: IconButton.styleFrom(
+                                backgroundColor: Theme.of(context)
+                                    .colorScheme
+                                    .error
+                                    .withOpacity(0.0),
+                              ),
                             ),
                           ),
-                        ),
                         // Chevron
                         AnimatedContainer(
                           duration: const Duration(milliseconds: 200),
@@ -633,6 +720,69 @@ class _NoteCardState extends State<_NoteCard>
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PathBar extends StatelessWidget {
+  final String currentPath;
+  final VoidCallback? onGoRoot;
+  final VoidCallback? onGoUp;
+
+  const _PathBar({
+    required this.currentPath,
+    required this.onGoRoot,
+    required this.onGoUp,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final label = currentPath.isEmpty ? 'Vault root' : currentPath;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(AppTheme.md, AppTheme.sm, AppTheme.md, 0),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.45),
+          borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+          border: Border.all(
+            color: Theme.of(context).colorScheme.outline.withOpacity(0.25),
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              Icons.account_tree_outlined,
+              size: 18,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                label,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            if (onGoRoot != null)
+              TextButton.icon(
+                onPressed: onGoRoot,
+                icon: const Icon(Icons.home_rounded, size: 16),
+                label: const Text('Root'),
+              ),
+            if (onGoUp != null)
+              TextButton.icon(
+                onPressed: onGoUp,
+                icon: const Icon(Icons.arrow_upward_rounded, size: 16),
+                label: const Text('Up'),
+              ),
+          ],
         ),
       ),
     );
@@ -722,6 +872,128 @@ class _DeleteNoteDialog extends StatelessWidget {
               ),
             ),
             const TextSpan(text: '? This action cannot be undone.'),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop(true),
+          style: FilledButton.styleFrom(
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+          child: const Text('Delete'),
+        ),
+      ],
+    );
+  }
+}
+
+class _CreateFolderDialog extends StatefulWidget {
+  const _CreateFolderDialog();
+
+  @override
+  State<_CreateFolderDialog> createState() => _CreateFolderDialogState();
+}
+
+class _CreateFolderDialogState extends State<_CreateFolderDialog> {
+  final _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(
+              Icons.create_new_folder_rounded,
+              size: 20,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+          ),
+          const SizedBox(width: 12),
+          const Text('New Folder'),
+        ],
+      ),
+      content: TextField(
+        controller: _controller,
+        autofocus: true,
+        decoration: const InputDecoration(
+          labelText: 'Folder name',
+          hintText: 'Projects',
+        ),
+        onSubmitted: (value) => Navigator.of(context).pop(value.trim()),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop(_controller.text.trim()),
+          child: const Text('Create'),
+        ),
+      ],
+    );
+  }
+}
+
+class _DeleteFolderDialog extends StatelessWidget {
+  final String folderName;
+
+  const _DeleteFolderDialog({required this.folderName});
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.error.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(
+              Icons.folder_delete_rounded,
+              size: 20,
+              color: Theme.of(context).colorScheme.error,
+            ),
+          ),
+          const SizedBox(width: 12),
+          const Text('Delete Folder'),
+        ],
+      ),
+      content: RichText(
+        text: TextSpan(
+          style: Theme.of(context).dialogTheme.contentTextStyle,
+          children: [
+            const TextSpan(text: 'Delete '),
+            TextSpan(
+              text: '"$folderName"',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                color: Theme.of(context).colorScheme.onSurface,
+              ),
+            ),
+            const TextSpan(
+              text:
+                  '? Only empty folders can be deleted. This action cannot be undone.',
+            ),
           ],
         ),
       ),

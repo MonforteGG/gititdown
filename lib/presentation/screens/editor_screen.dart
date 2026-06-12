@@ -193,7 +193,9 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     final content = _contentController.text;
     final fullName = _addExtension(name);
     final currentNote = _loadedNote ?? widget.note;
-    final path = currentNote?.path ?? fullName;
+    final currentPath = ref.read(notesProvider).currentPath;
+    final path = currentNote?.path ??
+        (currentPath.isEmpty ? fullName : '$currentPath/$fullName');
 
     final note = Note(
       name: fullName,
@@ -357,6 +359,16 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                           color: Theme.of(context).colorScheme.primary,
                           fontSize: 11,
                         ),
+                  ),
+                if (widget.note == null && ref.watch(notesProvider).currentPath.isNotEmpty)
+                  Text(
+                    ref.watch(notesProvider).currentPath,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.tertiary,
+                          fontSize: 11,
+                        ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
               ],
             ),

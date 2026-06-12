@@ -1,11 +1,13 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/error/failures.dart';
-import '../../core/utils/usecase.dart';
 import '../../domain/entities/note.dart';
 import '../../domain/entities/note_commit.dart';
+import '../../domain/usecases/create_folder.dart';
+import '../../domain/usecases/delete_folder.dart';
 import '../../domain/usecases/delete_note.dart';
 import '../../domain/usecases/get_note.dart';
 import '../../domain/usecases/get_note_history.dart';
+import '../../domain/usecases/get_notes.dart';
 import '../../domain/usecases/save_note.dart';
 import 'dependency_providers.dart';
 
@@ -20,6 +22,7 @@ class NotesState {
   final Note? selectedNote;
   final Failure? failure;
   final String? errorMessage;
+  final String currentPath;
 
   final HistoryStatus historyStatus;
   final List<NoteCommit> noteHistory;
@@ -31,6 +34,7 @@ class NotesState {
     this.selectedNote,
     this.failure,
     this.errorMessage,
+    this.currentPath = '',
     this.historyStatus = HistoryStatus.initial,
     this.noteHistory = const [],
     this.versionNote,
@@ -42,6 +46,7 @@ class NotesState {
     Note? selectedNote,
     Failure? failure,
     String? errorMessage,
+    String? currentPath,
     bool clearSelectedNote = false,
     HistoryStatus? historyStatus,
     List<NoteCommit>? noteHistory,
@@ -53,6 +58,7 @@ class NotesState {
       selectedNote: clearSelectedNote ? null : (selectedNote ?? this.selectedNote),
       failure: failure ?? this.failure,
       errorMessage: errorMessage ?? this.errorMessage,
+      currentPath: currentPath ?? this.currentPath,
       historyStatus: historyStatus ?? this.historyStatus,
       noteHistory: noteHistory ?? this.noteHistory,
       versionNote: versionNote,
@@ -72,12 +78,13 @@ class NotesNotifier extends StateNotifier<NotesState> {
     super.dispose();
   }
 
-  Future<void> loadNotes() async {
+  Future<void> loadNotes([String? path]) async {
     state = state.copyWith(status: NotesStatus.loading, failure: null);
-    
+
+    final targetPath = path ?? state.currentPath;
     final getNotesUseCase = _ref.read(getNotesUseCaseProvider);
-    final result = await getNotesUseCase(const NoParams());
-    
+    final result = await getNotesUseCase(GetNotesParams(path: targetPath));
+
     result.fold(
       (failure) => state = state.copyWith(
         status: NotesStatus.error,
@@ -86,6 +93,7 @@ class NotesNotifier extends StateNotifier<NotesState> {
       (notes) => state = state.copyWith(
         status: NotesStatus.loaded,
         notes: notes,
+        currentPath: targetPath,
       ),
     );
   }
@@ -133,7 +141,12 @@ class NotesNotifier extends StateNotifier<NotesState> {
           updatedNotes[existingIndex] = savedNote;
         } else {
           updatedNotes.add(savedNote);
-          updatedNotes.sort((a, b) => a.name.compareTo(b.name));
+          updatedNotes.sort((a, b) {
+            if (a.type != b.type) {
+              return a.isDirectory ? -1 : 1;
+            }
+            return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+          });
         }
         
         state = state.copyWith(
@@ -175,6 +188,74 @@ class NotesNotifier extends StateNotifier<NotesState> {
     );
   }
 
+  Future<bool> deleteFolder(String path) async {
+    if (_isDisposed) return false;
+    state = state.copyWith(status: NotesStatus.deleting, failure: null);
+
+    final deleteFolderUseCase = _ref.read(deleteFolderUseCaseProvider);
+    final result =
+        await deleteFolderUseCase(DeleteFolderParams(path: path));
+
+    return result.fold(
+      (failure) {
+        state = state.copyWith(
+          status: NotesStatus.error,
+          failure: failure,
+        );
+        return false;
+      },
+      (_) {
+        final updatedNotes = state.notes.where((n) => n.path != path).toList();
+
+        state = state.copyWith(
+          status: NotesStatus.loaded,
+          notes: updatedNotes,
+        );
+        return true;
+      },
+    );
+  }
+
+  Future<bool> createFolder(String name) async {
+    if (_isDisposed) return false;
+
+    state = state.copyWith(status: NotesStatus.saving, failure: null);
+
+    final normalizedName = name.trim().replaceAll('\\', '/');
+    final folderPath = state.currentPath.isEmpty
+        ? normalizedName
+        : '${state.currentPath}/$normalizedName';
+
+    final createFolderUseCase = _ref.read(createFolderUseCaseProvider);
+    final result =
+        await createFolderUseCase(CreateFolderParams(path: folderPath));
+
+    return result.fold(
+      (failure) {
+        state = state.copyWith(
+          status: NotesStatus.error,
+          failure: failure,
+        );
+        return false;
+      },
+      (folder) {
+        final updatedNotes = List<Note>.from(state.notes)..add(folder);
+        updatedNotes.sort((a, b) {
+          if (a.type != b.type) {
+            return a.isDirectory ? -1 : 1;
+          }
+          return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+        });
+
+        state = state.copyWith(
+          status: NotesStatus.loaded,
+          notes: updatedNotes,
+        );
+        return true;
+      },
+    );
+  }
+
   void selectNote(Note note) {
     state = state.copyWith(selectedNote: note);
   }
@@ -185,6 +266,22 @@ class NotesNotifier extends StateNotifier<NotesState> {
 
   void clearError() {
     state = state.copyWith(failure: null, errorMessage: null, status: NotesStatus.loaded);
+  }
+
+  Future<void> openDirectory(Note directory) async {
+    if (!directory.isDirectory) return;
+    await loadNotes(directory.path);
+  }
+
+  Future<void> navigateToRoot() async {
+    await loadNotes('');
+  }
+
+  Future<void> navigateUp() async {
+    if (state.currentPath.isEmpty) return;
+
+    final segments = state.currentPath.split('/')..removeLast();
+    await loadNotes(segments.join('/'));
   }
 
   void handleConflict(String path) async {

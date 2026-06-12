@@ -147,3 +147,8 @@ windows/
 
 # === Flutter generated ===
 .metadata
+
+# === Local artifacts ===
+/.mcp.json
+/demo_pro.mp4
+/gititdown-v1.0.0-windows.zip

@@ -9,6 +9,8 @@ abstract class IGitHubRemoteDataSource {
   Future<List<GitHubFileModel>> getFiles(String path);
   Future<GitHubFileModel> getFile(String path);
   Future<GitHubFileModel> createOrUpdateFile(String path, String content, String? sha);
+  Future<void> createFolder(String path);
+  Future<void> deleteFolder(String path);
   Future<void> deleteFile(String path, String sha);
   Future<bool> validateCredentials();
   Future<List<NoteCommitModel>> getFileCommits(String path);
@@ -39,17 +41,27 @@ class GitHubRemoteDataSource implements IGitHubRemoteDataSource {
 
   String get _repoPath => '/repos/$_username/$_repository';
 
+  Map<String, dynamic> get _freshReadQueryParameters => {
+        '_': DateTime.now().millisecondsSinceEpoch,
+      };
+
   @override
   Future<List<GitHubFileModel>> getFiles(String path) async {
     try {
       final response = await _dio.get(
         '$_repoPath/contents/$path',
+        queryParameters: _freshReadQueryParameters,
       );
 
       if (response.data is List) {
         final files = (response.data as List)
             .map((json) => GitHubFileModel.fromJson(json as Map<String, dynamic>))
-            .where((file) => file.type == 'file' && file.name.endsWith(AppConstants.markdownExtension))
+            .where(
+              (file) =>
+                  file.type == 'dir' ||
+                  (file.type == 'file' &&
+                      file.name.endsWith(AppConstants.markdownExtension)),
+            )
             .toList();
         return files;
       }
@@ -65,24 +77,11 @@ class GitHubRemoteDataSource implements IGitHubRemoteDataSource {
     try {
       final response = await _dio.get(
         '$_repoPath/contents/$path',
+        queryParameters: _freshReadQueryParameters,
       );
 
       final file = GitHubFileModel.fromJson(response.data as Map<String, dynamic>);
-      
-      // Decode content if present
-      if (file.content != null) {
-        final decodedContent = Base64Utils.decode(file.content!);
-        return GitHubFileModel(
-          name: file.name,
-          path: file.path,
-          sha: file.sha,
-          content: file.content,
-          type: file.type,
-          size: file.size,
-          downloadUrl: file.downloadUrl,
-        );
-      }
-      
+
       return file;
     } on DioException catch (e) {
       throw _handleDioError(e);
@@ -113,6 +112,50 @@ class GitHubRemoteDataSource implements IGitHubRemoteDataSource {
 
       final contentData = response.data['content'] as Map<String, dynamic>;
       return GitHubFileModel.fromJson(contentData);
+    } on DioException catch (e) {
+      throw _handleDioError(e);
+    }
+  }
+
+  @override
+  Future<void> createFolder(String path) async {
+    try {
+      final placeholderPath =
+          '$path/${AppConstants.folderPlaceholderFileName}';
+      final body = {
+        'message': AppConstants.defaultCreateFolderMessage,
+        'content': Base64Utils.encode(''),
+      };
+
+      await _dio.put(
+        '$_repoPath/contents/$placeholderPath',
+        data: body,
+      );
+    } on DioException catch (e) {
+      throw _handleDioError(e);
+    }
+  }
+
+  @override
+  Future<void> deleteFolder(String path) async {
+    try {
+      final files = await getFiles(path);
+      final visibleEntries = files
+          .where((file) => file.name != AppConstants.folderPlaceholderFileName)
+          .toList();
+
+      if (visibleEntries.isNotEmpty) {
+        throw ValidationFailure(
+          message: 'Folder must be empty before deleting it.',
+          statusCode: 422,
+        );
+      }
+
+      final placeholderPath = '$path/${AppConstants.folderPlaceholderFileName}';
+      final placeholder = await getFile(placeholderPath);
+      await deleteFile(placeholderPath, placeholder.sha);
+    } on Failure {
+      rethrow;
     } on DioException catch (e) {
       throw _handleDioError(e);
     }
