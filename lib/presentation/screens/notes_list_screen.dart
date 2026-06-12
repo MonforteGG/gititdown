@@ -238,6 +238,7 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
     final isSearching = notesState.searchQuery.trim().isNotEmpty;
     final notes = isSearching ? notesState.searchResults : notesState.notes;
     final currentPath = notesState.currentPath;
+    final searchMetadata = notesState.searchMatchMetadata;
 
     ref.listen(notesProvider, (previous, next) {
       if (next.status == NotesStatus.error && next.failure != null) {
@@ -315,6 +316,8 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
                                   onTap: () => _openNote(note),
                                   onDelete: () => _deleteNote(note),
                                   formatFileName: _formatFileName,
+                                  searchMetadata:
+                                      isSearching ? searchMetadata[note.path] : null,
                                 );
                               },
                               childCount: notes.length,
@@ -403,10 +406,15 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
       child: TextField(
         controller: _searchController,
         onChanged: (value) async {
-          ref.read(notesProvider.notifier).updateSearchQuery(value);
+          final notifier = ref.read(notesProvider.notifier);
+          notifier.updateSearchQuery(value);
 
           if (value.trim().isNotEmpty && notesState.vaultEntries.isEmpty) {
-            await ref.read(notesProvider.notifier).loadVaultEntries();
+            await notifier.loadVaultEntries();
+          }
+
+          if (value.trim().isNotEmpty) {
+            await notifier.loadSearchContentIndex();
           }
         },
         decoration: InputDecoration(
@@ -558,6 +566,7 @@ class _NoteCard extends StatefulWidget {
   final VoidCallback onTap;
   final VoidCallback? onDelete;
   final String Function(String) formatFileName;
+  final SearchMatchMetadata? searchMetadata;
 
   const _NoteCard({
     required this.note,
@@ -565,6 +574,7 @@ class _NoteCard extends StatefulWidget {
     required this.onTap,
     required this.onDelete,
     required this.formatFileName,
+    required this.searchMetadata,
   });
 
   @override
@@ -733,6 +743,47 @@ class _NoteCardState extends State<_NoteCard>
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                 ),
+                              ] else if (widget.searchMetadata != null &&
+                                  (widget.searchMetadata!.contentMatchCount > 0 ||
+                                      widget.searchMetadata!.matchedByNameOrPath)) ...[
+                                const SizedBox(height: 4),
+                                Text(
+                                  widget.note.path,
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                if (widget.searchMetadata!.contentMatchCount > 0) ...[
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    widget.searchMetadata!.snippet ?? '',
+                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                          color: Theme.of(context).colorScheme.tertiary,
+                                          fontStyle: FontStyle.italic,
+                                        ),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    widget.searchMetadata!.contentMatchCount == 1
+                                        ? '1 content match'
+                                        : '${widget.searchMetadata!.contentMatchCount} content matches',
+                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                          color: Theme.of(context).colorScheme.primary,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                  ),
+                                ] else ...[
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    'Matched by name or path',
+                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                          color: Theme.of(context).colorScheme.primary,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                  ),
+                                ],
                               ] else if (widget.note.lastModified != null) ...[
                                 const SizedBox(height: 4),
                                 Row(

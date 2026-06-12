@@ -18,6 +18,18 @@ enum NotesStatus { initial, loading, loaded, saving, deleting, error }
 enum HistoryStatus { initial, loading, loaded, error }
 enum SearchStatus { initial, loading, loaded, error }
 
+class SearchMatchMetadata {
+  final int contentMatchCount;
+  final String? snippet;
+  final bool matchedByNameOrPath;
+
+  const SearchMatchMetadata({
+    required this.contentMatchCount,
+    required this.snippet,
+    required this.matchedByNameOrPath,
+  });
+}
+
 class NotesState {
   final NotesStatus status;
   final List<Note> notes;
@@ -29,6 +41,8 @@ class NotesState {
   final String searchQuery;
   final List<Note> vaultEntries;
   final List<Note> searchResults;
+  final Map<String, String> noteContentCache;
+  final Map<String, SearchMatchMetadata> searchMatchMetadata;
 
   final HistoryStatus historyStatus;
   final List<NoteCommit> noteHistory;
@@ -45,6 +59,8 @@ class NotesState {
     this.searchQuery = '',
     this.vaultEntries = const [],
     this.searchResults = const [],
+    this.noteContentCache = const {},
+    this.searchMatchMetadata = const {},
     this.historyStatus = HistoryStatus.initial,
     this.noteHistory = const [],
     this.versionNote,
@@ -61,6 +77,8 @@ class NotesState {
     String? searchQuery,
     List<Note>? vaultEntries,
     List<Note>? searchResults,
+    Map<String, String>? noteContentCache,
+    Map<String, SearchMatchMetadata>? searchMatchMetadata,
     bool clearSelectedNote = false,
     HistoryStatus? historyStatus,
     List<NoteCommit>? noteHistory,
@@ -77,6 +95,8 @@ class NotesState {
       searchQuery: searchQuery ?? this.searchQuery,
       vaultEntries: vaultEntries ?? this.vaultEntries,
       searchResults: searchResults ?? this.searchResults,
+      noteContentCache: noteContentCache ?? this.noteContentCache,
+      searchMatchMetadata: searchMatchMetadata ?? this.searchMatchMetadata,
       historyStatus: historyStatus ?? this.historyStatus,
       noteHistory: noteHistory ?? this.noteHistory,
       versionNote: versionNote,
@@ -87,6 +107,7 @@ class NotesState {
 class NotesNotifier extends StateNotifier<NotesState> {
   final Ref _ref;
   bool _isDisposed = false;
+  bool _isIndexingSearchContent = false;
 
   NotesNotifier(this._ref) : super(const NotesState());
 
@@ -138,6 +159,7 @@ class NotesNotifier extends StateNotifier<NotesState> {
         state = state.copyWith(
           searchStatus: SearchStatus.loaded,
           vaultEntries: entries,
+          noteContentCache: force ? const {} : state.noteContentCache,
         );
         _applySearchQuery(state.searchQuery);
       },
@@ -200,6 +222,10 @@ class NotesNotifier extends StateNotifier<NotesState> {
           notes: updatedNotes,
           selectedNote: savedNote,
           vaultEntries: _upsertVaultEntry(savedNote),
+          noteContentCache: {
+            ...state.noteContentCache,
+            savedNote.path: savedNote.content,
+          },
         );
         _applySearchQuery(state.searchQuery);
         return true;
@@ -231,6 +257,8 @@ class NotesNotifier extends StateNotifier<NotesState> {
           notes: updatedNotes,
           selectedNote: state.selectedNote?.path == path ? null : state.selectedNote,
           vaultEntries: state.vaultEntries.where((n) => n.path != path).toList(),
+          noteContentCache: Map<String, String>.from(state.noteContentCache)
+            ..remove(path),
         );
         _applySearchQuery(state.searchQuery);
         return true;
@@ -261,6 +289,8 @@ class NotesNotifier extends StateNotifier<NotesState> {
           status: NotesStatus.loaded,
           notes: updatedNotes,
           vaultEntries: state.vaultEntries.where((n) => n.path != path).toList(),
+          noteContentCache: Map<String, String>.from(state.noteContentCache)
+            ..removeWhere((key, _) => key == path || key.startsWith('$path/')),
         );
         _applySearchQuery(state.searchQuery);
         return true;
@@ -331,7 +361,49 @@ class NotesNotifier extends StateNotifier<NotesState> {
     state = state.copyWith(
       searchQuery: '',
       searchResults: const [],
+      searchMatchMetadata: const {},
     );
+  }
+
+  Future<void> loadSearchContentIndex() async {
+    if (_isIndexingSearchContent) return;
+
+    final fileEntries = state.vaultEntries.where((entry) => entry.isFile).toList();
+    final missingEntries = fileEntries
+        .where((entry) => !state.noteContentCache.containsKey(entry.path))
+        .toList();
+
+    if (missingEntries.isEmpty) {
+      state = state.copyWith(searchStatus: SearchStatus.loaded);
+      _applySearchQuery(state.searchQuery);
+      return;
+    }
+
+    _isIndexingSearchContent = true;
+    state = state.copyWith(searchStatus: SearchStatus.loading);
+
+    final cache = Map<String, String>.from(state.noteContentCache);
+    final getNoteUseCase = _ref.read(getNoteUseCaseProvider);
+
+    try {
+      for (final entry in missingEntries) {
+        if (_isDisposed) return;
+
+        final result = await getNoteUseCase(GetNoteParams(path: entry.path));
+        result.fold(
+          (_) {},
+          (note) => cache[entry.path] = note.content,
+        );
+      }
+
+      state = state.copyWith(
+        searchStatus: SearchStatus.loaded,
+        noteContentCache: cache,
+      );
+      _applySearchQuery(state.searchQuery);
+    } finally {
+      _isIndexingSearchContent = false;
+    }
   }
 
   Future<void> openDirectory(Note directory) async {
@@ -438,17 +510,79 @@ class NotesNotifier extends StateNotifier<NotesState> {
   void _applySearchQuery(String query) {
     final normalizedQuery = query.trim().toLowerCase();
     if (normalizedQuery.isEmpty) {
-      state = state.copyWith(searchResults: const []);
+      state = state.copyWith(
+        searchResults: const [],
+        searchMatchMetadata: const {},
+      );
       return;
     }
 
-    final results = state.vaultEntries.where((entry) {
+    final results = <Note>[];
+    final metadata = <String, SearchMatchMetadata>{};
+
+    for (final entry in state.vaultEntries) {
       final name = entry.name.toLowerCase();
       final path = entry.path.toLowerCase();
-      return name.contains(normalizedQuery) || path.contains(normalizedQuery);
-    }).toList();
+      final content =
+          state.noteContentCache[entry.path]?.toLowerCase() ?? '';
+      final matchedByNameOrPath =
+          name.contains(normalizedQuery) || path.contains(normalizedQuery);
+      final contentMatchCount =
+          entry.isFile ? _countOccurrences(content, normalizedQuery) : 0;
 
-    state = state.copyWith(searchResults: results);
+      if (!matchedByNameOrPath && contentMatchCount == 0) {
+        continue;
+      }
+
+      results.add(entry);
+      metadata[entry.path] = SearchMatchMetadata(
+        contentMatchCount: contentMatchCount,
+        snippet: contentMatchCount > 0
+            ? _buildSnippet(
+                state.noteContentCache[entry.path] ?? '',
+                normalizedQuery,
+              )
+            : null,
+        matchedByNameOrPath: matchedByNameOrPath,
+      );
+    }
+
+    state = state.copyWith(
+      searchResults: results,
+      searchMatchMetadata: metadata,
+    );
+  }
+
+  int _countOccurrences(String text, String query) {
+    if (text.isEmpty || query.isEmpty) return 0;
+
+    var count = 0;
+    var start = 0;
+    while (true) {
+      final index = text.indexOf(query, start);
+      if (index == -1) break;
+      count++;
+      start = index + query.length;
+    }
+    return count;
+  }
+
+  String? _buildSnippet(String content, String normalizedQuery) {
+    if (content.isEmpty || normalizedQuery.isEmpty) return null;
+
+    final lowerContent = content.toLowerCase();
+    final matchIndex = lowerContent.indexOf(normalizedQuery);
+    if (matchIndex == -1) return null;
+
+    final snippetRadius = 36;
+    final start = (matchIndex - snippetRadius).clamp(0, content.length);
+    final end =
+        (matchIndex + normalizedQuery.length + snippetRadius).clamp(0, content.length);
+    final prefix = start > 0 ? '...' : '';
+    final suffix = end < content.length ? '...' : '';
+    final snippet = content.substring(start, end).replaceAll(RegExp(r'\s+'), ' ').trim();
+
+    return '$prefix$snippet$suffix';
   }
 }
 
