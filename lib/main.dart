@@ -46,28 +46,21 @@ class AuthWrapper extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final authState = ref.watch(authProvider);
 
-    // Show appropriate screen based on auth status
+    if (authState.isCheckingStoredAuth) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
     switch (authState.status) {
-      case AuthStatus.initial:
-        // Show splash/loading while checking auth
-        return const Scaffold(
-          body: Center(
-            child: CircularProgressIndicator(),
-          ),
-        );
-      case AuthStatus.loading:
-        // Show loading screen during authentication
-        return const Scaffold(
-          body: Center(
-            child: CircularProgressIndicator(),
-          ),
-        );
       case AuthStatus.authenticated:
-        // User is authenticated, show notes list
         return const NotesListScreen();
+      case AuthStatus.initial:
+      case AuthStatus.loading:
       case AuthStatus.unauthenticated:
       case AuthStatus.error:
-        // User is not authenticated or there was an error, show login
         return const LoginScreen();
     }
   }

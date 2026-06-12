@@ -12,22 +12,26 @@ class AuthState {
   final AuthStatus status;
   final UserConfig? userConfig;
   final Failure? failure;
+  final bool isCheckingStoredAuth;
 
   const AuthState({
     this.status = AuthStatus.initial,
     this.userConfig,
     this.failure,
+    this.isCheckingStoredAuth = true,
   });
 
   AuthState copyWith({
     AuthStatus? status,
     UserConfig? userConfig,
     Failure? failure,
+    bool? isCheckingStoredAuth,
   }) {
     return AuthState(
       status: status ?? this.status,
       userConfig: userConfig ?? this.userConfig,
       failure: failure ?? this.failure,
+      isCheckingStoredAuth: isCheckingStoredAuth ?? this.isCheckingStoredAuth,
     );
   }
 }
@@ -40,7 +44,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   Future<void> _checkExistingAuth() async {
-    state = state.copyWith(status: AuthStatus.loading);
+    state = state.copyWith(
+      status: AuthStatus.loading,
+      isCheckingStoredAuth: true,
+    );
     
     final localStorageRepo = _ref.read(localStorageRepositoryProvider);
     final hasValidConfig = await localStorageRepo.hasValidConfig();
@@ -49,6 +56,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       (failure) => state = state.copyWith(
         status: AuthStatus.unauthenticated,
         failure: failure,
+        isCheckingStoredAuth: false,
       ),
       (hasValid) async {
         if (hasValid) {
@@ -57,6 +65,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
             (failure) => state = state.copyWith(
               status: AuthStatus.unauthenticated,
               failure: failure,
+              isCheckingStoredAuth: false,
             ),
             (config) {
               if (config != null) {
@@ -64,21 +73,32 @@ class AuthNotifier extends StateNotifier<AuthState> {
                 state = state.copyWith(
                   status: AuthStatus.authenticated,
                   userConfig: config,
+                  isCheckingStoredAuth: false,
                 );
               } else {
-                state = state.copyWith(status: AuthStatus.unauthenticated);
+                state = state.copyWith(
+                  status: AuthStatus.unauthenticated,
+                  isCheckingStoredAuth: false,
+                );
               }
             },
           );
         } else {
-          state = state.copyWith(status: AuthStatus.unauthenticated);
+          state = state.copyWith(
+            status: AuthStatus.unauthenticated,
+            isCheckingStoredAuth: false,
+          );
         }
       },
     );
   }
 
   Future<void> login(String username, String repository, String pat) async {
-    state = state.copyWith(status: AuthStatus.loading, failure: null);
+    state = state.copyWith(
+      status: AuthStatus.loading,
+      failure: null,
+      isCheckingStoredAuth: false,
+    );
     
     final config = UserConfig(
       username: username,
@@ -96,21 +116,26 @@ class AuthNotifier extends StateNotifier<AuthState> {
       (failure) {
         _ref.read(userConfigProvider.notifier).state = null;
         state = state.copyWith(
-          status: AuthStatus.error,
+          status: AuthStatus.unauthenticated,
           failure: failure,
+          isCheckingStoredAuth: false,
         );
       },
       (success) {
         state = state.copyWith(
           status: AuthStatus.authenticated,
           userConfig: config,
+          isCheckingStoredAuth: false,
         );
       },
     );
   }
 
   Future<void> logout() async {
-    state = state.copyWith(status: AuthStatus.loading);
+    state = state.copyWith(
+      status: AuthStatus.loading,
+      isCheckingStoredAuth: false,
+    );
     
     final logoutUseCase = _ref.read(logoutUseCaseProvider);
     final result = await logoutUseCase(const NoParams());
@@ -119,16 +144,24 @@ class AuthNotifier extends StateNotifier<AuthState> {
       (failure) => state = state.copyWith(
         status: AuthStatus.error,
         failure: failure,
+        isCheckingStoredAuth: false,
       ),
       (_) {
         _ref.read(userConfigProvider.notifier).state = null;
-        state = const AuthState(status: AuthStatus.unauthenticated);
+        state = const AuthState(
+          status: AuthStatus.unauthenticated,
+          isCheckingStoredAuth: false,
+        );
       },
     );
   }
 
   void clearError() {
-    state = state.copyWith(failure: null, status: AuthStatus.unauthenticated);
+    state = state.copyWith(
+      failure: null,
+      status: AuthStatus.unauthenticated,
+      isCheckingStoredAuth: false,
+    );
   }
 }
 

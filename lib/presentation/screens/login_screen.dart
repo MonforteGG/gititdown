@@ -103,6 +103,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
 
   Future<void> _handleLogin() async {
     if (_formKey.currentState?.validate() ?? false) {
+      ref.read(authProvider.notifier).clearError();
       await ref.read(authProvider.notifier).login(
             _usernameController.text.trim(),
             _repositoryController.text.trim(),
@@ -116,7 +117,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     final authState = ref.watch(authProvider);
 
     ref.listen(authProvider, (previous, next) {
-      if (next.status == AuthStatus.error && next.failure != null) {
+      if (next.failure != null &&
+          previous?.failure?.message != next.failure?.message) {
         String message = next.failure!.message;
         if (next.failure is AuthenticationFailure) {
           message = 'Invalid token. Please check your Personal Access Token.';
@@ -194,6 +196,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                             _buildLogoSection(context),
                             const SizedBox(height: 48),
                             _buildFormSection(context, isLoading),
+                            if (authState.failure != null) ...[
+                              const SizedBox(height: 16),
+                              _buildErrorBanner(context, authState.failure!),
+                            ],
                             const SizedBox(height: 32),
                             _buildConnectButton(context, isLoading),
                             const SizedBox(height: 24),
@@ -463,6 +469,49 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                   ],
                 ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildErrorBanner(BuildContext context, Failure failure) {
+    String message = failure.message;
+    if (failure is AuthenticationFailure) {
+      message = 'Invalid token. Please check your Personal Access Token.';
+    } else if (failure.statusCode == 404) {
+      message = 'Repository not found. Check your username and repository.';
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(AppTheme.md),
+      decoration: BoxDecoration(
+        color: AppTheme.errorColor.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+        border: Border.all(
+          color: AppTheme.errorColor.withOpacity(0.22),
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.only(top: 2),
+            child: Icon(
+              Icons.error_outline_rounded,
+              color: AppTheme.errorColor,
+              size: 18,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              message,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppTheme.errorColor,
+                    fontWeight: FontWeight.w500,
+                  ),
+            ),
+          ),
+        ],
       ),
     );
   }
