@@ -17,8 +17,15 @@ const List<String> _fontFallback = ['Noto Sans'];
 
 class AudioPlayerScreen extends ConsumerStatefulWidget {
   final Note note;
+  final Duration? initialPosition;
+  final bool autoplay;
 
-  const AudioPlayerScreen({super.key, required this.note});
+  const AudioPlayerScreen({
+    super.key,
+    required this.note,
+    this.initialPosition,
+    this.autoplay = false,
+  });
 
   @override
   ConsumerState<AudioPlayerScreen> createState() => _AudioPlayerScreenState();
@@ -38,6 +45,7 @@ class _AudioPlayerScreenState extends ConsumerState<AudioPlayerScreen> {
   double _playbackRate = 1.0;
   bool _isLoading = true;
   String? _errorMessage;
+  bool _initialPlaybackHandled = false;
 
   @override
   void initState() {
@@ -92,6 +100,8 @@ class _AudioPlayerScreenState extends ConsumerState<AudioPlayerScreen> {
         await _player.setSourceUrl(note.downloadUrl!);
       }
 
+      await _applyInitialPlaybackOptions();
+
       if (!mounted) return;
       setState(() {
         _resolvedNote = note;
@@ -129,6 +139,19 @@ class _AudioPlayerScreenState extends ConsumerState<AudioPlayerScreen> {
     final getFileUseCase = ref.read(getFileUseCaseProvider);
     final result = await getFileUseCase(GetFileParams(path: widget.note.path));
     return result.fold((_) => null, (note) => note);
+  }
+
+  Future<void> _applyInitialPlaybackOptions() async {
+    if (_initialPlaybackHandled) return;
+    _initialPlaybackHandled = true;
+
+    if (widget.initialPosition != null) {
+      await _player.seek(widget.initialPosition!);
+    }
+
+    if (widget.autoplay) {
+      await _player.resume();
+    }
   }
 
   Future<void> _togglePlayback() async {

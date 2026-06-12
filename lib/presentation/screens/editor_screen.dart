@@ -30,6 +30,9 @@ class EditorScreen extends ConsumerStatefulWidget {
 class _EditorScreenState extends ConsumerState<EditorScreen>
     with TickerProviderStateMixin {
   static final RegExp _wikiLinkPattern = RegExp(r'\[\[([^\]|]+)(?:\|([^\]]+))?\]\]');
+  static final RegExp _timeStampPattern = RegExp(
+    r'^(?:(\d+):)?([0-5]?\d):([0-5]?\d)$',
+  );
 
   late TextEditingController _contentController;
   late TextEditingController _nameController;
@@ -395,6 +398,70 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     });
   }
 
+  ({String path, Duration? startAt}) _parseWikiLinkTarget(String rawTarget) {
+    final trimmed = rawTarget.trim();
+    if (trimmed.isEmpty) {
+      return (path: trimmed, startAt: null);
+    }
+
+    final queryIndex = trimmed.indexOf('?');
+    if (queryIndex != -1) {
+      final path = trimmed.substring(0, queryIndex);
+      final query = trimmed.substring(queryIndex + 1);
+      return (path: path, startAt: _parseTimestampQuery(query));
+    }
+
+    final hashIndex = trimmed.lastIndexOf('#');
+    if (hashIndex != -1) {
+      final path = trimmed.substring(0, hashIndex);
+      final fragment = trimmed.substring(hashIndex + 1);
+      return (path: path, startAt: _parseTimestampFragment(fragment));
+    }
+
+    return (path: trimmed, startAt: null);
+  }
+
+  Duration? _parseTimestampQuery(String query) {
+    for (final part in query.split('&')) {
+      final separatorIndex = part.indexOf('=');
+      if (separatorIndex == -1) continue;
+
+      final key = part.substring(0, separatorIndex).toLowerCase();
+      final value = part.substring(separatorIndex + 1);
+      if (key == 't' || key == 'time' || key == 'start') {
+        return _parseTimestampValue(value);
+      }
+    }
+    return null;
+  }
+
+  Duration? _parseTimestampFragment(String fragment) {
+    final normalized = fragment.toLowerCase();
+    if (normalized.startsWith('t=')) {
+      return _parseTimestampValue(fragment.substring(2));
+    }
+    return _parseTimestampValue(fragment);
+  }
+
+  Duration? _parseTimestampValue(String rawValue) {
+    final value = rawValue.trim();
+    if (value.isEmpty) return null;
+
+    final asSeconds = int.tryParse(value);
+    if (asSeconds != null) {
+      return Duration(seconds: asSeconds);
+    }
+
+    final match = _timeStampPattern.firstMatch(value);
+    if (match == null) return null;
+
+    final hours = int.tryParse(match.group(1) ?? '0') ?? 0;
+    final minutes = int.tryParse(match.group(2) ?? '0') ?? 0;
+    final seconds = int.tryParse(match.group(3) ?? '0') ?? 0;
+
+    return Duration(hours: hours, minutes: minutes, seconds: seconds);
+  }
+
   Future<void> _handlePreviewLinkTap(String text, String? href, String title) async {
     if (href == null) return;
 
@@ -404,6 +471,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     }
 
     final rawTarget = Uri.decodeComponent(uri.path.replaceFirst('/', ''));
+    final parsedTarget = _parseWikiLinkTarget(rawTarget);
     final notifier = ref.read(notesProvider.notifier);
     final notesState = ref.read(notesProvider);
 
@@ -411,7 +479,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
       await notifier.loadVaultEntries();
     }
 
-    final targetNote = notifier.findNoteByWikiLink(rawTarget);
+    final targetNote = notifier.findNoteByWikiLink(parsedTarget.path);
 
     if (targetNote == null) {
       if (!mounted) return;
@@ -424,7 +492,11 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => targetNote.isAudio
-            ? AudioPlayerScreen(note: targetNote)
+            ? AudioPlayerScreen(
+                note: targetNote,
+                initialPosition: parsedTarget.startAt,
+                autoplay: parsedTarget.startAt != null,
+              )
             : EditorScreen(note: targetNote),
       ),
     );
@@ -860,7 +932,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
               ).copyWith(fontFamilyFallback: _fontFallback),
               decoration: InputDecoration(
                 hintText:
-                    'Start writing in Markdown...\n\n# Heading\n**bold** and *italic*\n- List item\n[[link a note]]',
+                    'Start writing in Markdown...\n\n# Heading\n**bold** and *italic*\n- List item\n[[link a note]]\n[[audio.mp3#12:34|meeting moment]]',
                 hintStyle: GoogleFonts.jetBrainsMono(
                   fontSize: 14,
                   height: 1.7,
