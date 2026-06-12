@@ -27,6 +27,8 @@ class EditorScreen extends ConsumerStatefulWidget {
 
 class _EditorScreenState extends ConsumerState<EditorScreen>
     with TickerProviderStateMixin {
+  static final RegExp _wikiLinkPattern = RegExp(r'\[\[([^\]|]+)(?:\|([^\]]+))?\]\]');
+
   late TextEditingController _contentController;
   late TextEditingController _nameController;
   late EditorMode _mode;
@@ -230,6 +232,49 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     setState(() {
       _mode = mode;
     });
+  }
+
+  String _normalizeMarkdownForPreview(String content) {
+    return content.replaceAllMapped(_wikiLinkPattern, (match) {
+      final target = match.group(1)?.trim() ?? '';
+      final alias = match.group(2)?.trim();
+      final label = (alias == null || alias.isEmpty) ? target : alias;
+      final encodedTarget = Uri.encodeComponent(target);
+      return '[$label](gititdown://note/$encodedTarget)';
+    });
+  }
+
+  Future<void> _handlePreviewLinkTap(String text, String? href, String title) async {
+    if (href == null) return;
+
+    final uri = Uri.tryParse(href);
+    if (uri == null || uri.scheme != 'gititdown' || uri.host != 'note') {
+      return;
+    }
+
+    final rawTarget = Uri.decodeComponent(uri.path.replaceFirst('/', ''));
+    final notifier = ref.read(notesProvider.notifier);
+    final notesState = ref.read(notesProvider);
+
+    if (notesState.vaultEntries.isEmpty) {
+      await notifier.loadVaultEntries();
+    }
+
+    final targetNote = notifier.findNoteByWikiLink(rawTarget);
+
+    if (targetNote == null) {
+      if (!mounted) return;
+      _showErrorSnackbar('Linked note not found: $rawTarget');
+      return;
+    }
+
+    if (!mounted) return;
+
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => EditorScreen(note: targetNote),
+      ),
+    );
   }
 
   @override
@@ -499,12 +544,15 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   }
 
   Widget _buildPreviewMode() {
+    final previewData = _normalizeMarkdownForPreview(_contentController.text.isEmpty
+        ? '_Start writing to see preview..._'
+        : _contentController.text);
+
     return Markdown(
       key: const ValueKey('preview'),
-      data: _contentController.text.isEmpty
-          ? '_Start writing to see preview..._'
-          : _contentController.text,
+      data: previewData,
       selectable: true,
+      onTapLink: _handlePreviewLinkTap,
       styleSheet: MarkdownStyleSheet(
         // Headings with Playfair Display
         h1: GoogleFonts.playfairDisplay(

@@ -166,6 +166,39 @@ class NotesNotifier extends StateNotifier<NotesState> {
     );
   }
 
+  Note? findNoteByWikiLink(String rawTarget) {
+    final target = rawTarget.trim();
+    if (target.isEmpty) return null;
+
+    final normalizedTarget = target.endsWith('.md') ? target : '$target.md';
+    final normalizedLower = normalizedTarget.toLowerCase();
+
+    Note? exactPathMatch;
+    try {
+      exactPathMatch = state.vaultEntries.firstWhere(
+        (entry) => entry.isFile && entry.path.toLowerCase() == normalizedLower,
+      );
+    } catch (_) {
+      exactPathMatch = null;
+    }
+    if (exactPathMatch != null) return exactPathMatch;
+
+    final fileName = normalizedTarget.split('/').last.toLowerCase();
+    final candidates = state.vaultEntries.where((entry) {
+      if (!entry.isFile) return false;
+      final entryPath = entry.path.toLowerCase();
+      return entryPath == normalizedLower || entryPath.endsWith('/$fileName');
+    }).toList();
+
+    if (candidates.isEmpty) return null;
+    if (candidates.length == 1) return candidates.first;
+
+    return candidates.firstWhere(
+      (entry) => entry.parentPath == state.currentPath,
+      orElse: () => candidates.first,
+    );
+  }
+
   Future<void> loadNote(String path) async {
     if (_isDisposed) return;
     state = state.copyWith(status: NotesStatus.loading, failure: null);
