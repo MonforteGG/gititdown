@@ -389,7 +389,9 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   }
 
   String _normalizeMarkdownForPreview(String content) {
-    return content.replaceAllMapped(_wikiLinkPattern, (match) {
+    final normalizedFrontmatter = _normalizeFrontmatterForPreview(content);
+
+    return normalizedFrontmatter.replaceAllMapped(_wikiLinkPattern, (match) {
       final target = match.group(1)?.trim() ?? '';
       final parsedTarget = _parseWikiLinkTarget(target);
       final label = parsedTarget.startAt != null
@@ -398,6 +400,87 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
       final encodedTarget = Uri.encodeComponent(target);
       return '[$label](gititdown://note/$encodedTarget)';
     });
+  }
+
+  String _normalizeFrontmatterForPreview(String content) {
+    final lines = content.split('\n');
+    if (lines.length < 3 || lines.first.trim() != '---') {
+      return content;
+    }
+
+    var closingIndex = -1;
+    for (var i = 1; i < lines.length; i++) {
+      if (lines[i].trim() == '---') {
+        closingIndex = i;
+        break;
+      }
+    }
+
+    if (closingIndex == -1) {
+      return content;
+    }
+
+    final frontmatterLines = lines.sublist(1, closingIndex);
+    final bodyLines = lines.sublist(closingIndex + 1);
+    final tableLines = <String>[
+      '|  |  |',
+      '| --- | --- |',
+    ];
+
+    for (var i = 0; i < frontmatterLines.length; i++) {
+      final line = frontmatterLines[i].trimRight();
+      if (line.trim().isEmpty) {
+        continue;
+      }
+
+      final keyMatch = RegExp(r'^([A-Za-z0-9_-]+):\s*(.*)$').firstMatch(line);
+      if (keyMatch == null) {
+        continue;
+      }
+
+      final key = keyMatch.group(1) ?? '';
+      final rawValue = keyMatch.group(2)?.trim() ?? '';
+
+      if (rawValue.isEmpty) {
+        final items = <String>[];
+        var j = i + 1;
+        while (j < frontmatterLines.length) {
+          final candidate = frontmatterLines[j].trim();
+          if (!candidate.startsWith('- ')) {
+            break;
+          }
+          items.add(candidate.substring(2).trim());
+          j++;
+        }
+
+        if (items.isNotEmpty) {
+          tableLines.add(
+            '| **${_escapeTableCell(key)}** | ${_escapeTableCell(items.join(', '))} |',
+          );
+          i = j - 1;
+          continue;
+        }
+      }
+
+      tableLines.add(
+        '| **${_escapeTableCell(key)}** | ${_escapeTableCell(rawValue)} |',
+      );
+    }
+
+    if (tableLines.length == 2) {
+      return content;
+    }
+
+    final remainingBody = bodyLines.join('\n').trimLeft();
+    if (remainingBody.isEmpty) {
+      return '${tableLines.join('\n')}\n';
+    }
+
+    return '${tableLines.join('\n')}\n\n$remainingBody';
+  }
+
+  String _escapeTableCell(String value) {
+    return value.replaceAll('|', r'\|');
   }
 
   String _formatDurationForLink(Duration duration) {
