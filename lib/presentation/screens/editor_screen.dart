@@ -250,6 +250,120 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     });
   }
 
+  TextSelection _safeSelection() {
+    final selection = _contentController.selection;
+    if (selection.isValid) {
+      return selection;
+    }
+
+    final textLength = _contentController.text.length;
+    return TextSelection.collapsed(offset: textLength);
+  }
+
+  void _updateEditorValue({
+    required String text,
+    required TextSelection selection,
+  }) {
+    _contentController.value = TextEditingValue(
+      text: text,
+      selection: selection,
+    );
+    _editorFocusNode.requestFocus();
+    _updateWikiSuggestions();
+  }
+
+  void _wrapSelection({
+    required String prefix,
+    required String suffix,
+    required String placeholder,
+  }) {
+    final selection = _safeSelection();
+    final text = _contentController.text;
+    final start = selection.start;
+    final end = selection.end;
+    final selectedText = start == end ? placeholder : text.substring(start, end);
+    final replacement = '$prefix$selectedText$suffix';
+    final updatedText = text.replaceRange(start, end, replacement);
+
+    _updateEditorValue(
+      text: updatedText,
+      selection: TextSelection.collapsed(offset: start + replacement.length),
+    );
+  }
+
+  void _prefixSelectedLines(String prefix, {String placeholder = 'Item'}) {
+    final selection = _safeSelection();
+    final text = _contentController.text;
+    final start = selection.start;
+    final end = selection.end;
+
+    if (start == end) {
+      final replacement = '$prefix$placeholder';
+      final updatedText = text.replaceRange(start, end, replacement);
+      _updateEditorValue(
+        text: updatedText,
+        selection: TextSelection.collapsed(offset: start + replacement.length),
+      );
+      return;
+    }
+
+    final blockStart = text.lastIndexOf('\n', start - 1);
+    final normalizedStart = blockStart == -1 ? 0 : blockStart + 1;
+    final blockEndIndex = text.indexOf('\n', end);
+    final normalizedEnd = blockEndIndex == -1 ? text.length : blockEndIndex;
+    final selectedBlock = text.substring(normalizedStart, normalizedEnd);
+    final replacement = selectedBlock
+        .split('\n')
+        .map((line) => line.isEmpty ? prefix.trimRight() : '$prefix$line')
+        .join('\n');
+
+    final updatedText =
+        text.substring(0, normalizedStart) + replacement + text.substring(normalizedEnd);
+
+    _updateEditorValue(
+      text: updatedText,
+      selection: TextSelection(
+        baseOffset: normalizedStart,
+        extentOffset: normalizedStart + replacement.length,
+      ),
+    );
+  }
+
+  void _insertMarkdownLink() {
+    final selection = _safeSelection();
+    final text = _contentController.text;
+    final start = selection.start;
+    final end = selection.end;
+    final selectedText = start == end ? 'link text' : text.substring(start, end);
+    final replacement = '[$selectedText](https://)';
+    final updatedText = text.replaceRange(start, end, replacement);
+    final urlStart = start + selectedText.length + 3;
+
+    _updateEditorValue(
+      text: updatedText,
+      selection: TextSelection(baseOffset: urlStart, extentOffset: urlStart + 8),
+    );
+  }
+
+  void _insertWikiLink() {
+    _wrapSelection(prefix: '[[', suffix: ']]', placeholder: 'note');
+  }
+
+  void _insertCodeBlock() {
+    final selection = _safeSelection();
+    final text = _contentController.text;
+    final start = selection.start;
+    final end = selection.end;
+    final selectedText = start == end ? '\ncode\n' : '\n${text.substring(start, end)}\n';
+    final replacement = '```$selectedText```';
+    final updatedText = text.replaceRange(start, end, replacement);
+
+    _updateEditorValue(
+      text: updatedText,
+      selection: TextSelection.collapsed(offset: start + replacement.length),
+    );
+  }
+
   void _updateWikiSuggestions() {
     final selection = _contentController.selection;
     if (!selection.isValid) {
@@ -649,8 +763,10 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                             ? _buildLoadingState()
                             : Column(
                                 children: [
-                                   // Name Field
-                                   if (widget.note == null && _mode == EditorMode.edit)
+                                  if (_mode == EditorMode.edit)
+                                    _buildMarkdownToolbar(isSaving),
+                                  // Name Field
+                                  if (widget.note == null && _mode == EditorMode.edit)
                                     _buildNameField(context, isSaving),
                                   // Editor/Preview
                                   Expanded(
@@ -1101,6 +1217,155 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
             ),
           ),
       ],
+    );
+  }
+
+  Widget _buildMarkdownToolbar(bool isSaving) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(AppTheme.md, AppTheme.sm, AppTheme.md, 0),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+        border: Border.all(color: colorScheme.outline.withOpacity(0.16)),
+      ),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            _MarkdownToolbarButton(
+              label: 'H1',
+              icon: Icons.title_rounded,
+              enabled: !isSaving,
+              onTap: () => _prefixSelectedLines('# ', placeholder: 'Heading'),
+            ),
+            _MarkdownToolbarButton(
+              label: 'H2',
+              icon: Icons.format_size_rounded,
+              enabled: !isSaving,
+              onTap: () => _prefixSelectedLines('## ', placeholder: 'Section'),
+            ),
+            _MarkdownToolbarButton(
+              label: 'Bold',
+              icon: Icons.format_bold_rounded,
+              enabled: !isSaving,
+              onTap: () => _wrapSelection(
+                prefix: '**',
+                suffix: '**',
+                placeholder: 'bold text',
+              ),
+            ),
+            _MarkdownToolbarButton(
+              label: 'Italic',
+              icon: Icons.format_italic_rounded,
+              enabled: !isSaving,
+              onTap: () => _wrapSelection(
+                prefix: '*',
+                suffix: '*',
+                placeholder: 'italic text',
+              ),
+            ),
+            _MarkdownToolbarButton(
+              label: 'List',
+              icon: Icons.format_list_bulleted_rounded,
+              enabled: !isSaving,
+              onTap: () => _prefixSelectedLines('- ', placeholder: 'List item'),
+            ),
+            _MarkdownToolbarButton(
+              label: 'Task',
+              icon: Icons.check_box_outlined,
+              enabled: !isSaving,
+              onTap: () => _prefixSelectedLines('- [ ] ', placeholder: 'Task'),
+            ),
+            _MarkdownToolbarButton(
+              label: 'Quote',
+              icon: Icons.format_quote_rounded,
+              enabled: !isSaving,
+              onTap: () => _prefixSelectedLines('> ', placeholder: 'Quote'),
+            ),
+            _MarkdownToolbarButton(
+              label: 'Code',
+              icon: Icons.code_rounded,
+              enabled: !isSaving,
+              onTap: _insertCodeBlock,
+            ),
+            _MarkdownToolbarButton(
+              label: 'Link',
+              icon: Icons.link_rounded,
+              enabled: !isSaving,
+              onTap: _insertMarkdownLink,
+            ),
+            _MarkdownToolbarButton(
+              label: 'Wiki',
+              icon: Icons.auto_awesome_rounded,
+              enabled: !isSaving,
+              onTap: _insertWikiLink,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MarkdownToolbarButton extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final VoidCallback onTap;
+  final bool enabled;
+
+  const _MarkdownToolbarButton({
+    required this.label,
+    required this.icon,
+    required this.onTap,
+    required this.enabled,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: InkWell(
+        onTap: enabled ? onTap : null,
+        borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+        child: Ink(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: BoxDecoration(
+            color: enabled
+                ? colorScheme.primary.withOpacity(0.08)
+                : colorScheme.outline.withOpacity(0.08),
+            borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+            border: Border.all(
+              color: enabled
+                  ? colorScheme.primary.withOpacity(0.18)
+                  : colorScheme.outline.withOpacity(0.12),
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                size: 16,
+                color: enabled ? colorScheme.primary : colorScheme.tertiary,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: enabled ? colorScheme.primary : colorScheme.tertiary,
+                ).copyWith(fontFamilyFallback: _fontFallback),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
