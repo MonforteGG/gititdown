@@ -37,12 +37,12 @@ class AppTheme {
 
   static List<BoxShadow> get subtleShadow => [
         BoxShadow(
-          color: inkBlack.withOpacity(0.04),
+          color: inkBlack.withValues(alpha: 0.04),
           blurRadius: 8,
           offset: const Offset(0, 2),
         ),
         BoxShadow(
-          color: brandOrange.withOpacity(0.02),
+          color: brandOrange.withValues(alpha: 0.02),
           blurRadius: 16,
           offset: const Offset(0, 4),
         ),
@@ -50,12 +50,12 @@ class AppTheme {
 
   static List<BoxShadow> get elevatedShadow => [
         BoxShadow(
-          color: inkBlack.withOpacity(0.08),
+          color: inkBlack.withValues(alpha: 0.08),
           blurRadius: 16,
           offset: const Offset(0, 4),
         ),
         BoxShadow(
-          color: brandOrange.withOpacity(0.04),
+          color: brandOrange.withValues(alpha: 0.04),
           blurRadius: 32,
           offset: const Offset(0, 8),
         ),
@@ -241,7 +241,7 @@ class AppTheme {
           elevation: 0,
           backgroundColor: brandOrange,
           foregroundColor: paperCream,
-          disabledBackgroundColor: mutedGray.withOpacity(0.3),
+          disabledBackgroundColor: mutedGray.withValues(alpha: 0.3),
           disabledForegroundColor: mutedGray,
           padding: const EdgeInsets.symmetric(horizontal: lg, vertical: md),
           minimumSize: const Size(0, 52),
@@ -313,7 +313,7 @@ class AppTheme {
       iconButtonTheme: IconButtonThemeData(
         style: IconButton.styleFrom(
           foregroundColor: inkBlack,
-          highlightColor: brandOrange.withOpacity(0.1),
+          highlightColor: brandOrange.withValues(alpha: 0.1),
         ),
       ),
       segmentedButtonTheme: SegmentedButtonThemeData(
@@ -395,7 +395,7 @@ class AppTheme {
       ),
       chipTheme: ChipThemeData(
         backgroundColor: paperWarm,
-        selectedColor: brandOrange.withOpacity(0.15),
+        selectedColor: brandOrange.withValues(alpha: 0.15),
         labelStyle: GoogleFonts.plusJakartaSans(
           fontSize: 13,
           fontWeight: FontWeight.w500,
@@ -407,7 +407,7 @@ class AppTheme {
       ),
       tooltipTheme: TooltipThemeData(
         decoration: BoxDecoration(
-          color: inkBlack.withOpacity(0.9),
+          color: inkBlack.withValues(alpha: 0.9),
           borderRadius: BorderRadius.circular(radiusSm),
         ),
         textStyle: GoogleFonts.plusJakartaSans(

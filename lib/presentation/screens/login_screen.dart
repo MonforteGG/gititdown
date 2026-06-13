@@ -78,7 +78,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
             Container(
               padding: const EdgeInsets.all(4),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.2),
+                color: Colors.white.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(6),
               ),
               child: const Icon(Icons.error_outline, color: Colors.white, size: 18),
@@ -141,7 +141,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
             right: -100,
             child: _DecorativeCircle(
               size: 300,
-              color: Theme.of(context).colorScheme.primary.withOpacity(0.03),
+              color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.03),
             ),
           ),
           Positioned(
@@ -149,7 +149,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
             left: -100,
             child: _DecorativeCircle(
               size: 400,
-              color: Theme.of(context).colorScheme.secondary.withOpacity(0.05),
+              color: Theme.of(context).colorScheme.secondary.withValues(alpha: 0.05),
             ),
           ),
           // Subtle grid pattern
@@ -157,7 +157,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
             child: IgnorePointer(
               child: CustomPaint(
                 painter: _GridPainter(
-                  color: AppTheme.inkBlack.withOpacity(0.035),
+                  color: AppTheme.inkBlack.withValues(alpha: 0.035),
                 ),
               ),
             ),
@@ -305,7 +305,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
         color: Theme.of(context).colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(AppTheme.radiusLg),
         border: Border.all(
-          color: Theme.of(context).colorScheme.outline.withOpacity(0.5),
+          color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.5),
         ),
         boxShadow: AppTheme.subtleShadow,
       ),
@@ -484,10 +484,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     return Container(
       padding: const EdgeInsets.all(AppTheme.md),
       decoration: BoxDecoration(
-        color: AppTheme.errorColor.withOpacity(0.08),
+        color: AppTheme.errorColor.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(AppTheme.radiusMd),
         border: Border.all(
-          color: AppTheme.errorColor.withOpacity(0.22),
+          color: AppTheme.errorColor.withValues(alpha: 0.22),
         ),
       ),
       child: Row(

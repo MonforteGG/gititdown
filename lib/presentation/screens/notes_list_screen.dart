@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -5,9 +6,11 @@ import '../../config/theme.dart';
 import '../../domain/entities/note.dart';
 import '../../presentation/providers/auth_provider.dart';
 import '../../presentation/providers/notes_provider.dart';
+import '../../presentation/providers/search_provider.dart';
 import 'audio_player_screen.dart';
 import '../widgets/github_footer.dart';
 import '../widgets/notebook_background.dart';
+import '../widgets/notes_list_components.dart';
 import 'editor_screen.dart';
 
 // Font fallback for characters not covered by primary fonts
@@ -24,6 +27,7 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
     with TickerProviderStateMixin {
   late AnimationController _fabController;
   final TextEditingController _searchController = TextEditingController();
+  Timer? _searchDebounce;
   bool _showTreeView = false;
   final Set<String> _expandedTreePaths = <String>{};
 
@@ -48,6 +52,7 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
   void dispose() {
     _fabController.dispose();
     _searchController.dispose();
+    _searchDebounce?.cancel();
     super.dispose();
   }
 
@@ -59,7 +64,7 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
             Container(
               padding: const EdgeInsets.all(4),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.2),
+                color: Colors.white.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(6),
               ),
               child: const Icon(Icons.error_outline, color: Colors.white, size: 18),
@@ -78,7 +83,7 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
   Future<void> _handleLogout() async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => _LogoutDialog(),
+      builder: (context) => const LogoutDialog(),
     );
 
     if (confirmed == true) {
@@ -88,23 +93,23 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
 
   Future<void> _refreshNotes() async {
     final notifier = ref.read(notesProvider.notifier);
-    final notesState = ref.read(notesProvider);
+    final searchState = ref.read(vaultSearchProvider);
 
     await notifier.loadNotes();
 
     if (_showTreeView ||
-        notesState.searchStatus != SearchStatus.initial ||
-        notesState.searchQuery.trim().isNotEmpty) {
-      await notifier.loadVaultEntries(force: true);
+        searchState.status != SearchStatus.initial ||
+        searchState.query.trim().isNotEmpty) {
+      await ref.read(vaultSearchProvider.notifier).loadVaultEntries(force: true);
     }
   }
 
   Future<void> _toggleTreeView(bool enabled) async {
     if (enabled) {
-      final notifier = ref.read(notesProvider.notifier);
-      final state = ref.read(notesProvider);
-      if (state.vaultEntries.isEmpty) {
-        await notifier.loadVaultEntries();
+      final searchNotifier = ref.read(vaultSearchProvider.notifier);
+      final searchState = ref.read(vaultSearchProvider);
+      if (searchState.vaultEntries.isEmpty) {
+        await searchNotifier.loadVaultEntries();
       }
     }
 
@@ -142,7 +147,7 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
   Future<void> _createFolder() async {
     final folderName = await showDialog<String>(
       context: context,
-      builder: (context) => const _CreateFolderDialog(),
+      builder: (context) => const CreateFolderDialog(),
     );
 
     if (folderName == null || folderName.trim().isEmpty) {
@@ -175,9 +180,9 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
 
   void _openNote(Note note) {
     if (note.isDirectory) {
-      if (ref.read(notesProvider).searchQuery.trim().isNotEmpty) {
+      if (ref.read(vaultSearchProvider).query.trim().isNotEmpty) {
         _searchController.clear();
-        ref.read(notesProvider.notifier).clearSearch();
+        ref.read(vaultSearchProvider.notifier).clearSearch();
       }
       ref.read(notesProvider.notifier).openDirectory(note);
       return;
@@ -220,7 +225,7 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
     if (note.isDirectory) {
       final confirmed = await showDialog<bool>(
         context: context,
-        builder: (context) => _DeleteFolderDialog(folderName: note.name),
+        builder: (context) => DeleteFolderDialog(folderName: note.name),
       );
 
       if (confirmed == true) {
@@ -238,7 +243,7 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
 
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => _DeleteNoteDialog(noteName: _formatFileName(note.name)),
+      builder: (context) => DeleteNoteDialog(noteName: _formatFileName(note.name)),
     );
 
     if (confirmed == true) {
@@ -269,14 +274,20 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
   @override
   Widget build(BuildContext context) {
     final notesState = ref.watch(notesProvider);
-    final isSearching = notesState.searchQuery.trim().isNotEmpty;
-    final notes = isSearching ? notesState.searchResults : notesState.notes;
+    final searchState = ref.watch(vaultSearchProvider);
+    final isSearching = searchState.query.trim().isNotEmpty;
+    final notes = isSearching ? searchState.searchResults : notesState.notes;
     final currentPath = notesState.currentPath;
-    final searchMetadata = notesState.searchMatchMetadata;
+    final searchMetadata = searchState.searchMatchMetadata;
     final isTreeMode = !isSearching && currentPath.isEmpty && _showTreeView;
 
     ref.listen(notesProvider, (previous, next) {
       if (next.status == NotesStatus.error && next.failure != null) {
+        _showErrorSnackbar(next.failure!.message);
+      }
+    });
+    ref.listen(vaultSearchProvider, (previous, next) {
+      if (next.status == SearchStatus.error && next.failure != null) {
         _showErrorSnackbar(next.failure!.message);
       }
     });
@@ -289,12 +300,12 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
         children: [
           // Grid background
           Positioned.fill(
-            child: CustomPaint(
-              painter: GridPainter(
-                color: AppTheme.inkBlack.withOpacity(0.035),
-                spacing: 32,
+              child: CustomPaint(
+                painter: GridPainter(
+                  color: AppTheme.inkBlack.withValues(alpha: 0.035),
+                  spacing: 32,
+                ),
               ),
-            ),
           ),
           // GitHub Footer
           const Positioned(
@@ -313,10 +324,10 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
                     slivers: [
                       _buildAppBar(context),
                       SliverToBoxAdapter(
-                        child: _buildSearchBar(notesState),
+                        child: _buildSearchBar(searchState),
                       ),
                       SliverToBoxAdapter(
-                        child: _PathBar(
+                        child: PathBar(
                           currentPath: currentPath,
                           onGoRoot: currentPath.isEmpty
                               ? null
@@ -330,7 +341,8 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
                         ),
                       ),
                       SliverToBoxAdapter(
-                        child: isLoading && (isTreeMode ? notesState.vaultEntries.isEmpty : notes.isEmpty)
+                        child: isLoading &&
+                                (isTreeMode ? searchState.vaultEntries.isEmpty : notes.isEmpty)
                             ? _buildLoadingState()
                             : !isTreeMode && notes.isEmpty
                                 ? _buildEmptyState(context, currentPath, isSearching)
@@ -338,7 +350,7 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
                       ),
                       if (isTreeMode)
                         SliverToBoxAdapter(
-                          child: _buildTreeView(notesState),
+                          child: _buildTreeView(searchState),
                         )
                       else if (!isLoading || notes.isNotEmpty)
                         SliverPadding(
@@ -352,7 +364,7 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
                             delegate: SliverChildBuilderDelegate(
                               (context, index) {
                                 final note = notes[index];
-                                return _NoteCard(
+                                return NoteCard(
                                   note: note,
                                   index: index,
                                   onTap: () => _openNote(note),
@@ -419,7 +431,7 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
           onPressed: _createFolder,
         ),
         IconButton(
-          icon: Icon(Icons.add_rounded, color: AppTheme.brandOrange),
+          icon: const Icon(Icons.add_rounded, color: AppTheme.brandOrange),
           tooltip: 'New Note',
           onPressed: _createNewNote,
         ),
@@ -440,25 +452,30 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
     );
   }
 
-  Widget _buildSearchBar(NotesState notesState) {
-    final isSearching = notesState.searchQuery.trim().isNotEmpty;
-    final isSearchLoading = notesState.searchStatus == SearchStatus.loading;
+  Widget _buildSearchBar(VaultSearchState searchState) {
+    final isSearching = searchState.query.trim().isNotEmpty;
+    final isSearchLoading = searchState.status == SearchStatus.loading;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(AppTheme.md, AppTheme.sm, AppTheme.md, 0),
       child: TextField(
         controller: _searchController,
-        onChanged: (value) async {
-          final notifier = ref.read(notesProvider.notifier);
-          notifier.updateSearchQuery(value);
+        onChanged: (value) {
+          final notifier = ref.read(vaultSearchProvider.notifier);
+          notifier.updateQuery(value);
+          _searchDebounce?.cancel();
 
-          if (value.trim().isNotEmpty && notesState.vaultEntries.isEmpty) {
-            await notifier.loadVaultEntries();
+          if (value.trim().isEmpty) {
+            return;
           }
 
-          if (value.trim().isNotEmpty) {
+          _searchDebounce = Timer(const Duration(milliseconds: 250), () async {
+            final currentSearchState = ref.read(vaultSearchProvider);
+            if (currentSearchState.vaultEntries.isEmpty) {
+              await notifier.loadVaultEntries();
+            }
             await notifier.loadSearchContentIndex();
-          }
+          });
         },
         decoration: InputDecoration(
           hintText: 'Search across the vault',
@@ -480,7 +497,8 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
                   icon: const Icon(Icons.close_rounded),
                   onPressed: () {
                     _searchController.clear();
-                    ref.read(notesProvider.notifier).clearSearch();
+                    _searchDebounce?.cancel();
+                    ref.read(vaultSearchProvider.notifier).clearSearch();
                   },
                 )
               : null,
@@ -536,7 +554,7 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
                 color: Theme.of(context).colorScheme.surface,
                 borderRadius: BorderRadius.circular(24),
                 border: Border.all(
-                  color: Theme.of(context).colorScheme.outline.withOpacity(0.5),
+                  color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.5),
                   width: 2,
                   strokeAlign: BorderSide.strokeAlignOutside,
                 ),
@@ -547,7 +565,7 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
                   Icon(
                     Icons.description_outlined,
                     size: 40,
-                    color: Theme.of(context).colorScheme.tertiary.withOpacity(0.5),
+                    color: Theme.of(context).colorScheme.tertiary.withValues(alpha: 0.5),
                   ),
                   Positioned(
                     bottom: 20,
@@ -555,7 +573,7 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
                     child: Container(
                       padding: const EdgeInsets.all(4),
                       decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Icon(
@@ -601,8 +619,8 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
     );
   }
 
-  Widget _buildTreeView(NotesState notesState) {
-    final entries = notesState.vaultEntries;
+  Widget _buildTreeView(VaultSearchState searchState) {
+    final entries = searchState.vaultEntries;
     if (entries.isEmpty) {
       return _buildEmptyState(context, '', false);
     }
@@ -614,16 +632,16 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
       child: Container(
         padding: const EdgeInsets.all(AppTheme.sm),
         decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.28),
+          color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.28),
           borderRadius: BorderRadius.circular(AppTheme.radiusLg),
           border: Border.all(
-            color: Theme.of(context).colorScheme.outline.withOpacity(0.22),
+            color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.22),
           ),
         ),
         child: Column(
           children: [
             for (final entry in tree)
-              _TreeNodeTile(
+              TreeNodeTile(
                 entry: entry,
                 depth: 0,
                 expandedPaths: _expandedTreePaths,
@@ -637,6 +655,7 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
                   });
                 },
                 onOpen: _openNote,
+                onDelete: _deleteNote,
               ),
           ],
         ),
@@ -644,13 +663,13 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
     );
   }
 
-  List<_TreeEntry> _buildTreeEntries(List<Note> entries) {
+  List<TreeEntry> _buildTreeEntries(List<Note> entries) {
     final childrenByParent = <String, List<Note>>{};
     for (final entry in entries) {
       childrenByParent.putIfAbsent(entry.parentPath, () => <Note>[]).add(entry);
     }
 
-    List<_TreeEntry> buildLevel(String parentPath) {
+    List<TreeEntry> buildLevel(String parentPath) {
       final siblings = [...(childrenByParent[parentPath] ?? const <Note>[])];
       siblings.sort((a, b) {
         if (a.isDirectory != b.isDirectory) {
@@ -661,876 +680,14 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
 
       return siblings
           .map(
-            (entry) => _TreeEntry(
+            (entry) => TreeEntry(
               note: entry,
-              children: entry.isDirectory ? buildLevel(entry.path) : const <_TreeEntry>[],
+              children: entry.isDirectory ? buildLevel(entry.path) : const <TreeEntry>[],
             ),
           )
           .toList();
     }
 
     return buildLevel('');
-  }
-}
-
-// Animated Note Card
-class _NoteCard extends StatefulWidget {
-  final Note note;
-  final int index;
-  final VoidCallback onTap;
-  final VoidCallback? onDelete;
-  final String Function(String) formatFileName;
-  final String fileBadgeLabel;
-  final SearchMatchMetadata? searchMetadata;
-
-  const _NoteCard({
-    required this.note,
-    required this.index,
-    required this.onTap,
-    required this.onDelete,
-    required this.formatFileName,
-    required this.fileBadgeLabel,
-    required this.searchMetadata,
-  });
-
-  @override
-  State<_NoteCard> createState() => _NoteCardState();
-}
-
-class _NoteCardState extends State<_NoteCard>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _fadeAnimation;
-  late Animation<Offset> _slideAnimation;
-  bool _isHovered = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 400),
-    );
-    _fadeAnimation = CurvedAnimation(
-      parent: _controller,
-      curve: Curves.easeOut,
-    );
-    _slideAnimation = Tween<Offset>(
-      begin: const Offset(0, 0.1),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(
-      parent: _controller,
-      curve: Curves.easeOutCubic,
-    ));
-
-    // Staggered animation based on index
-    Future.delayed(Duration(milliseconds: 50 * widget.index), () {
-      if (mounted) _controller.forward();
-    });
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  String _formatDate(DateTime date) {
-    final now = DateTime.now();
-    final difference = now.difference(date);
-
-    if (difference.inDays == 0) {
-      if (difference.inHours == 0) {
-        if (difference.inMinutes == 0) {
-          return 'Just now';
-        }
-        return '${difference.inMinutes}m ago';
-      }
-      return '${difference.inHours}h ago';
-    } else if (difference.inDays == 1) {
-      return 'Yesterday';
-    } else if (difference.inDays < 7) {
-      return '${difference.inDays} days ago';
-    } else {
-      return '${date.month}/${date.day}/${date.year}';
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final isDirectory = widget.note.isDirectory;
-
-    return FadeTransition(
-      opacity: _fadeAnimation,
-      child: SlideTransition(
-        position: _slideAnimation,
-        child: Padding(
-          padding: const EdgeInsets.only(bottom: AppTheme.sm),
-          child: MouseRegion(
-            onEnter: (_) => setState(() => _isHovered = true),
-            onExit: (_) => setState(() => _isHovered = false),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                borderRadius: BorderRadius.circular(AppTheme.radiusMd),
-                border: Border.all(
-                  color: _isHovered
-                      ? Theme.of(context).colorScheme.primary.withOpacity(0.3)
-                      : Theme.of(context).colorScheme.outline.withOpacity(0.3),
-                  width: 1.5,
-                ),
-                boxShadow: _isHovered ? AppTheme.subtleShadow : null,
-              ),
-              child: Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  onTap: widget.onTap,
-                  borderRadius: BorderRadius.circular(AppTheme.radiusMd),
-                  child: Padding(
-                    padding: const EdgeInsets.all(AppTheme.md),
-                    child: Row(
-                      children: [
-                        // Document Icon with accent
-                        Container(
-                          width: 44,
-                          height: 44,
-                          decoration: BoxDecoration(
-                            color: Theme.of(context).colorScheme.primary.withOpacity(0.08),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Stack(
-                            alignment: Alignment.center,
-                            children: [
-                              Icon(
-                                isDirectory
-                                    ? Icons.folder_open_rounded
-                                    : widget.note.isAudio
-                                        ? Icons.graphic_eq_rounded
-                                        : Icons.description_outlined,
-                                size: 22,
-                                color: Theme.of(context).colorScheme.primary,
-                              ),
-                              if (!isDirectory)
-                                Positioned(
-                                  bottom: 6,
-                                  right: 6,
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 3,
-                                      vertical: 1,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: Theme.of(context).colorScheme.primary,
-                                      borderRadius: BorderRadius.circular(2),
-                                    ),
-                                    child: Text(
-                                      widget.fileBadgeLabel,
-                                      style: GoogleFonts.jetBrainsMono(
-                                        fontSize: 7,
-                                        fontWeight: FontWeight.w700,
-                                        color: Theme.of(context).colorScheme.onPrimary,
-                                      ).copyWith(fontFamilyFallback: _fontFallback),
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 14),
-                        // Note Info
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                isDirectory
-                                    ? widget.note.name
-                                    : widget.formatFileName(widget.note.name),
-                                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              if (isDirectory) ...[
-                                const SizedBox(height: 4),
-                                Text(
-                                  widget.note.path,
-                                  style: Theme.of(context).textTheme.bodySmall,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ] else if (widget.searchMetadata != null &&
-                                  (widget.searchMetadata!.contentMatchCount > 0 ||
-                                      widget.searchMetadata!.matchedByNameOrPath)) ...[
-                                const SizedBox(height: 4),
-                                Text(
-                                  widget.note.path,
-                                  style: Theme.of(context).textTheme.bodySmall,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                if (widget.searchMetadata!.contentMatchCount > 0) ...[
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    widget.searchMetadata!.snippet ?? '',
-                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                          color: Theme.of(context).colorScheme.tertiary,
-                                          fontStyle: FontStyle.italic,
-                                        ),
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    widget.searchMetadata!.contentMatchCount == 1
-                                        ? '1 content match'
-                                        : '${widget.searchMetadata!.contentMatchCount} content matches',
-                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                          color: Theme.of(context).colorScheme.primary,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                  ),
-                                ] else ...[
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    'Matched by name or path',
-                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                          color: Theme.of(context).colorScheme.primary,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                  ),
-                                ],
-                              ] else if (widget.note.lastModified != null) ...[
-                                const SizedBox(height: 4),
-                                Row(
-                                  children: [
-                                    Icon(
-                                      Icons.access_time_rounded,
-                                      size: 12,
-                                      color: Theme.of(context).colorScheme.tertiary,
-                                    ),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      _formatDate(widget.note.lastModified!),
-                                      style: Theme.of(context).textTheme.bodySmall,
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ],
-                          ),
-                        ),
-                        // Delete Button
-                        if (widget.onDelete != null)
-                          AnimatedOpacity(
-                            opacity: _isHovered ? 1.0 : 0.6,
-                            duration: const Duration(milliseconds: 200),
-                            child: IconButton(
-                              icon: Icon(
-                                Icons.delete_outline_rounded,
-                                size: 20,
-                                color: Theme.of(context).colorScheme.tertiary,
-                              ),
-                              tooltip: 'Delete',
-                              onPressed: widget.onDelete,
-                              style: IconButton.styleFrom(
-                                backgroundColor: Theme.of(context)
-                                    .colorScheme
-                                    .error
-                                    .withOpacity(0.0),
-                              ),
-                            ),
-                          ),
-                        // Chevron
-                        AnimatedContainer(
-                          duration: const Duration(milliseconds: 200),
-                          transform: Matrix4.translationValues(
-                            _isHovered ? 4 : 0,
-                            0,
-                            0,
-                          ),
-                          child: Icon(
-                            Icons.chevron_right_rounded,
-                            size: 20,
-                            color: _isHovered
-                                ? Theme.of(context).colorScheme.primary
-                                : Theme.of(context).colorScheme.tertiary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _PathBar extends StatelessWidget {
-  final String currentPath;
-  final VoidCallback? onGoRoot;
-  final VoidCallback? onGoUp;
-  final bool showTreeToggle;
-  final bool isTreeViewEnabled;
-  final ValueChanged<bool>? onTreeViewChanged;
-
-  const _PathBar({
-    required this.currentPath,
-    required this.onGoRoot,
-    required this.onGoUp,
-    this.showTreeToggle = false,
-    this.isTreeViewEnabled = false,
-    this.onTreeViewChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final label = currentPath.isEmpty ? 'Vault root' : currentPath;
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(AppTheme.md, AppTheme.sm, AppTheme.md, 0),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: BoxDecoration(
-          color: colorScheme.surfaceContainerHighest.withOpacity(0.45),
-          borderRadius: BorderRadius.circular(AppTheme.radiusMd),
-          border: Border.all(
-            color: colorScheme.outline.withOpacity(0.25),
-          ),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              Icons.device_hub_rounded,
-              size: 18,
-              color: colorScheme.primary,
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                label,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            if (showTreeToggle) ...[
-              const SizedBox(width: 8),
-              _TreeToggleChip(
-                isEnabled: isTreeViewEnabled,
-                onChanged: onTreeViewChanged,
-              ),
-            ],
-            if (onGoRoot != null)
-              TextButton.icon(
-                onPressed: onGoRoot,
-                icon: const Icon(Icons.home_rounded, size: 16),
-                label: const Text('Root'),
-              ),
-            if (onGoUp != null)
-              TextButton.icon(
-                onPressed: onGoUp,
-                icon: const Icon(Icons.arrow_upward_rounded, size: 16),
-                label: const Text('Up'),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _TreeToggleChip extends StatefulWidget {
-  final bool isEnabled;
-  final ValueChanged<bool>? onChanged;
-
-  const _TreeToggleChip({
-    required this.isEnabled,
-    required this.onChanged,
-  });
-
-  @override
-  State<_TreeToggleChip> createState() => _TreeToggleChipState();
-}
-
-class _TreeToggleChipState extends State<_TreeToggleChip> {
-  bool _isHovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final enabled = widget.isEnabled;
-    final canInteract = widget.onChanged != null;
-    final backgroundColor = colorScheme.surface;
-    final borderColor = colorScheme.outline.withOpacity(_isHovered ? 0.34 : 0.18);
-    final foregroundColor = colorScheme.onSurface;
-
-    return MouseRegion(
-      onEnter: (_) => setState(() => _isHovered = true),
-      onExit: (_) => setState(() => _isHovered = false),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        curve: Curves.easeOutCubic,
-        decoration: BoxDecoration(
-          color: backgroundColor,
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: borderColor),
-          boxShadow: enabled
-              ? [
-                  BoxShadow(
-                    color: colorScheme.shadow.withOpacity(0.06),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
-                ]
-              : null,
-        ),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: canInteract ? () => widget.onChanged!.call(!enabled) : null,
-            borderRadius: BorderRadius.circular(999),
-            splashFactory: NoSplash.splashFactory,
-            overlayColor: WidgetStateProperty.all(Colors.transparent),
-            hoverColor: Colors.transparent,
-            highlightColor: Colors.transparent,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 180),
-                    curve: Curves.easeOutCubic,
-                    child: Icon(
-                      Icons.account_tree_rounded,
-                      size: 16,
-                      color: foregroundColor,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  AnimatedDefaultTextStyle(
-                    duration: const Duration(milliseconds: 180),
-                    curve: Curves.easeOutCubic,
-                    style: Theme.of(context).textTheme.bodySmall!.copyWith(
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.2,
-                          color: foregroundColor,
-                        ),
-                    child: const Text('Tree'),
-                  ),
-                  const SizedBox(width: 10),
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 180),
-                    curve: Curves.easeOutCubic,
-                    width: 34,
-                    height: 20,
-                    padding: const EdgeInsets.all(2),
-                    decoration: BoxDecoration(
-                      color: enabled
-                          ? colorScheme.primary.withOpacity(0.16)
-                          : colorScheme.surfaceContainerHighest,
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: AnimatedAlign(
-                      duration: const Duration(milliseconds: 180),
-                      curve: Curves.easeOutCubic,
-                      alignment:
-                          enabled ? Alignment.centerRight : Alignment.centerLeft,
-                      child: Container(
-                        width: 14,
-                        height: 14,
-                        decoration: BoxDecoration(
-                          color: enabled ? colorScheme.primary : colorScheme.onSurface,
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _TreeEntry {
-  final Note note;
-  final List<_TreeEntry> children;
-
-  const _TreeEntry({
-    required this.note,
-    required this.children,
-  });
-}
-
-class _TreeNodeTile extends StatelessWidget {
-  final _TreeEntry entry;
-  final int depth;
-  final Set<String> expandedPaths;
-  final ValueChanged<String> onToggleExpansion;
-  final ValueChanged<Note> onOpen;
-  final String Function(String) formatFileName;
-  final String Function(Note) fileBadgeLabel;
-
-  const _TreeNodeTile({
-    required this.entry,
-    required this.depth,
-    required this.expandedPaths,
-    required this.onToggleExpansion,
-    required this.onOpen,
-    required this.formatFileName,
-    required this.fileBadgeLabel,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final isDirectory = entry.note.isDirectory;
-    final isExpanded = expandedPaths.contains(entry.note.path);
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Column(
-      children: [
-        Padding(
-          padding: EdgeInsets.only(left: depth * 18.0, bottom: 4),
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              borderRadius: BorderRadius.circular(AppTheme.radiusMd),
-              onTap: () => onOpen(entry.note),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(AppTheme.radiusMd),
-                ),
-                child: Row(
-                  children: [
-                    SizedBox(
-                      width: 28,
-                      child: isDirectory
-                          ? IconButton(
-                              onPressed: () => onToggleExpansion(entry.note.path),
-                              icon: AnimatedRotation(
-                                turns: isExpanded ? 0.25 : 0,
-                                duration: const Duration(milliseconds: 180),
-                                child: Icon(
-                                  Icons.chevron_right_rounded,
-                                  size: 18,
-                                  color: colorScheme.tertiary,
-                                ),
-                              ),
-                              padding: EdgeInsets.zero,
-                              visualDensity: VisualDensity.compact,
-                              splashRadius: 16,
-                            )
-                          : Icon(
-                              Icons.subdirectory_arrow_right_rounded,
-                              size: 16,
-                              color: colorScheme.outline,
-                            ),
-                    ),
-                    Container(
-                      width: 34,
-                      height: 34,
-                      decoration: BoxDecoration(
-                        color: colorScheme.primary.withOpacity(isDirectory ? 0.12 : 0.08),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Icon(
-                        isDirectory
-                            ? Icons.folder_open_rounded
-                            : entry.note.isAudio
-                                ? Icons.graphic_eq_rounded
-                                : Icons.description_outlined,
-                        size: 18,
-                        color: colorScheme.primary,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        isDirectory ? entry.note.name : formatFileName(entry.note.name),
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              fontWeight: isDirectory ? FontWeight.w700 : FontWeight.w500,
-                            ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    if (!isDirectory)
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: colorScheme.surface,
-                          borderRadius: BorderRadius.circular(999),
-                          border: Border.all(
-                            color: colorScheme.outline.withOpacity(0.18),
-                          ),
-                        ),
-                        child: Text(
-                          fileBadgeLabel(entry.note),
-                          style: GoogleFonts.jetBrainsMono(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                            color: colorScheme.primary,
-                          ).copyWith(fontFamilyFallback: _fontFallback),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-        if (isDirectory && isExpanded)
-          for (final child in entry.children)
-            _TreeNodeTile(
-              entry: child,
-              depth: depth + 1,
-              expandedPaths: expandedPaths,
-              formatFileName: formatFileName,
-              fileBadgeLabel: fileBadgeLabel,
-              onToggleExpansion: onToggleExpansion,
-              onOpen: onOpen,
-            ),
-      ],
-    );
-  }
-}
-
-// Logout Dialog
-class _LogoutDialog extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.error.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(
-              Icons.logout_rounded,
-              size: 20,
-              color: Theme.of(context).colorScheme.error,
-            ),
-          ),
-          const SizedBox(width: 12),
-          const Text('Disconnect'),
-        ],
-      ),
-      content: const Text(
-        'Are you sure you want to disconnect from GitHub? Your notes will remain in your repository.',
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(false),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.of(context).pop(true),
-          style: FilledButton.styleFrom(
-            backgroundColor: Theme.of(context).colorScheme.error,
-          ),
-          child: const Text('Disconnect'),
-        ),
-      ],
-    );
-  }
-}
-
-// Delete Note Dialog
-class _DeleteNoteDialog extends StatelessWidget {
-  final String noteName;
-
-  const _DeleteNoteDialog({required this.noteName});
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.error.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(
-              Icons.delete_outline_rounded,
-              size: 20,
-              color: Theme.of(context).colorScheme.error,
-            ),
-          ),
-          const SizedBox(width: 12),
-          const Text('Delete Note'),
-        ],
-      ),
-      content: RichText(
-        text: TextSpan(
-          style: Theme.of(context).dialogTheme.contentTextStyle,
-          children: [
-            const TextSpan(text: 'Are you sure you want to delete '),
-            TextSpan(
-              text: '"$noteName"',
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                color: Theme.of(context).colorScheme.onSurface,
-              ),
-            ),
-            const TextSpan(text: '? This action cannot be undone.'),
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(false),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.of(context).pop(true),
-          style: FilledButton.styleFrom(
-            backgroundColor: Theme.of(context).colorScheme.error,
-          ),
-          child: const Text('Delete'),
-        ),
-      ],
-    );
-  }
-}
-
-class _CreateFolderDialog extends StatefulWidget {
-  const _CreateFolderDialog();
-
-  @override
-  State<_CreateFolderDialog> createState() => _CreateFolderDialogState();
-}
-
-class _CreateFolderDialogState extends State<_CreateFolderDialog> {
-  final _controller = TextEditingController();
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(
-              Icons.create_new_folder_rounded,
-              size: 20,
-              color: Theme.of(context).colorScheme.primary,
-            ),
-          ),
-          const SizedBox(width: 12),
-          const Text('New Folder'),
-        ],
-      ),
-      content: TextField(
-        controller: _controller,
-        autofocus: true,
-        decoration: const InputDecoration(
-          labelText: 'Folder name',
-          hintText: 'Projects',
-        ),
-        onSubmitted: (value) => Navigator.of(context).pop(value.trim()),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.of(context).pop(_controller.text.trim()),
-          child: const Text('Create'),
-        ),
-      ],
-    );
-  }
-}
-
-class _DeleteFolderDialog extends StatelessWidget {
-  final String folderName;
-
-  const _DeleteFolderDialog({required this.folderName});
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.error.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(
-              Icons.folder_delete_rounded,
-              size: 20,
-              color: Theme.of(context).colorScheme.error,
-            ),
-          ),
-          const SizedBox(width: 12),
-          const Text('Delete Folder'),
-        ],
-      ),
-      content: RichText(
-        text: TextSpan(
-          style: Theme.of(context).dialogTheme.contentTextStyle,
-          children: [
-            const TextSpan(text: 'Delete '),
-            TextSpan(
-              text: '"$folderName"',
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                color: Theme.of(context).colorScheme.onSurface,
-              ),
-            ),
-            const TextSpan(
-              text:
-                  '? Only empty folders can be deleted. This action cannot be undone.',
-            ),
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(false),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.of(context).pop(true),
-          style: FilledButton.styleFrom(
-            backgroundColor: Theme.of(context).colorScheme.error,
-          ),
-          child: const Text('Delete'),
-        ),
-      ],
-    );
   }
 }

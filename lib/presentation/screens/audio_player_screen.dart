@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:typed_data';
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart';
@@ -503,15 +502,15 @@ class _AudioPlayerScreenState extends ConsumerState<AudioPlayerScreen> {
       ),
       body: Stack(
         children: [
-          Positioned.fill(
+          const Positioned.fill(
             child: DecoratedBox(
               decoration: BoxDecoration(
                 color: AppTheme.paperCream,
                 gradient: LinearGradient(
                   colors: [
-                    const Color(0xFFF7F0E5),
-                    const Color(0xFFF5F4EF),
-                    const Color(0xFFE8F0EE),
+                    Color(0xFFF7F0E5),
+                    Color(0xFFF5F4EF),
+                    Color(0xFFE8F0EE),
                   ],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
@@ -519,20 +518,20 @@ class _AudioPlayerScreenState extends ConsumerState<AudioPlayerScreen> {
               ),
             ),
           ),
-          Positioned(
+          const Positioned(
             top: -80,
             left: -40,
             child: _AmbientBlob(
               size: 220,
-              colors: const [Color(0x33E96A2B), Color(0x00E96A2B)],
+              colors: [Color(0x33E96A2B), Color(0x00E96A2B)],
             ),
           ),
-          Positioned(
+          const Positioned(
             right: -70,
             bottom: 80,
             child: _AmbientBlob(
               size: 260,
-              colors: const [Color(0x33C9A959), Color(0x00C9A959)],
+              colors: [Color(0x33C9A959), Color(0x00C9A959)],
             ),
           ),
           Center(
@@ -553,11 +552,11 @@ class _AudioPlayerScreenState extends ConsumerState<AudioPlayerScreen> {
                         : Container(
                             padding: const EdgeInsets.all(AppTheme.xl),
                             decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.76),
+                              color: Colors.white.withValues(alpha: 0.76),
                               borderRadius:
                                   BorderRadius.circular(AppTheme.radiusLg + 8),
                               border: Border.all(
-                                color: Colors.white.withOpacity(0.9),
+                                color: Colors.white.withValues(alpha: 0.9),
                               ),
                               boxShadow: AppTheme.elevatedShadow,
                             ),
@@ -595,12 +594,12 @@ class _AudioPlayerScreenState extends ConsumerState<AudioPlayerScreen> {
                                             width: 120,
                                             height: 120,
                                             decoration: BoxDecoration(
-                                              color: Colors.white.withOpacity(0.72),
+                                              color: Colors.white.withValues(alpha: 0.72),
                                               borderRadius: BorderRadius.circular(30),
                                               boxShadow: [
                                                 BoxShadow(
                                                   color: AppTheme.inkBlack
-                                                      .withOpacity(0.08),
+                                                      .withValues(alpha: 0.08),
                                                   blurRadius: 24,
                                                   offset: const Offset(0, 10),
                                                 ),
@@ -650,7 +649,7 @@ class _AudioPlayerScreenState extends ConsumerState<AudioPlayerScreen> {
                                                   spacing: AppTheme.sm,
                                                   runSpacing: AppTheme.sm,
                                                   children: [
-                                                    _MetaChip(
+                                                    const _MetaChip(
                                                       icon:
                                                           Icons.audio_file_rounded,
                                                       label: 'MP3 file',
@@ -902,7 +901,7 @@ class _AudioPlayerScreenState extends ConsumerState<AudioPlayerScreen> {
                                   Container(
                                     padding: const EdgeInsets.all(AppTheme.lg),
                                     decoration: BoxDecoration(
-                                      color: Colors.white.withOpacity(0.72),
+                                      color: Colors.white.withValues(alpha: 0.72),
                                       borderRadius: BorderRadius.circular(
                                         AppTheme.radiusLg,
                                       ),
@@ -1210,9 +1209,9 @@ class _MetaChip extends StatelessWidget {
         vertical: 10,
       ),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.7),
+        color: Colors.white.withValues(alpha: 0.7),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: Colors.white.withOpacity(0.95)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.95)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,

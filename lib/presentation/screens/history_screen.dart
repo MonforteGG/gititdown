@@ -6,7 +6,7 @@ import '../../config/theme.dart';
 import '../../core/error/failures.dart';
 import '../../domain/entities/note.dart';
 import '../../domain/entities/note_commit.dart';
-import '../../presentation/providers/notes_provider.dart';
+import '../../presentation/providers/note_history_provider.dart';
 import '../widgets/github_footer.dart';
 import '../widgets/notebook_background.dart';
 
@@ -31,7 +31,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
   void initState() {
     super.initState();
     Future.microtask(() {
-      ref.read(notesProvider.notifier).loadNoteHistory(widget.notePath);
+      ref.read(noteHistoryProvider.notifier).loadNoteHistory(widget.notePath);
     });
   }
 
@@ -42,7 +42,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final notesState = ref.watch(notesProvider);
+    final historyState = ref.watch(noteHistoryProvider);
 
     return Scaffold(
       body: Stack(
@@ -50,7 +50,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
           Positioned.fill(
             child: CustomPaint(
               painter: GridPainter(
-                color: AppTheme.inkBlack.withOpacity(0.035),
+                color: AppTheme.inkBlack.withValues(alpha: 0.035),
                 spacing: 32,
               ),
             ),
@@ -68,15 +68,15 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                 children: [
                   _buildAppBar(context),
                   Expanded(
-                    child: notesState.historyStatus == HistoryStatus.loading
+                    child: historyState.status == HistoryStatus.loading
                         ? _buildLoadingState()
-                        : notesState.historyStatus == HistoryStatus.error
-                            ? _buildErrorState(notesState.failure)
-                            : notesState.noteHistory.isEmpty
+                        : historyState.status == HistoryStatus.error
+                            ? _buildErrorState(historyState.failure)
+                            : historyState.noteHistory.isEmpty
                                 ? _buildEmptyState()
-                                : notesState.versionNote != null
-                                    ? _buildVersionView(notesState.versionNote!)
-                                    : _buildCommitList(notesState.noteHistory),
+                                : historyState.versionNote != null
+                                    ? _buildVersionView(historyState.versionNote!)
+                                    : _buildCommitList(historyState.noteHistory),
                   ),
                 ],
               ),
@@ -88,8 +88,8 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
   }
 
   Widget _buildAppBar(BuildContext context) {
-    final notesState = ref.watch(notesProvider);
-    final isViewingVersion = notesState.versionNote != null;
+    final historyState = ref.watch(noteHistoryProvider);
+    final isViewingVersion = historyState.versionNote != null;
 
     return Container(
       padding: const EdgeInsets.only(
@@ -102,7 +102,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
         color: Colors.white,
         border: Border(
           bottom: BorderSide(
-            color: Theme.of(context).colorScheme.outline.withOpacity(0.2),
+            color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
           ),
         ),
       ),
@@ -112,7 +112,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
             IconButton(
               icon: const Icon(Icons.arrow_back_rounded),
               onPressed: () {
-                ref.read(notesProvider.notifier).clearVersionView();
+                ref.read(noteHistoryProvider.notifier).clearVersionView();
               },
             )
           else
@@ -124,7 +124,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
           Expanded(
             child: Text(
               isViewingVersion
-                  ? 'Version: ${_formatDate(notesState.versionNote!.lastModified)}'
+                  ? 'Version: ${_formatDate(historyState.versionNote!.lastModified)}'
                   : 'History: ${_stripExtension(widget.noteName)}',
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w600,
@@ -135,7 +135,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
           ),
           if (!isViewingVersion)
             Text(
-              '${notesState.noteHistory.length} versions',
+              '${historyState.noteHistory.length} versions',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: Theme.of(context).colorScheme.tertiary,
                   ),
@@ -198,7 +198,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
           const SizedBox(height: 24),
           FilledButton.icon(
             onPressed: () {
-              ref.read(notesProvider.notifier).loadNoteHistory(widget.notePath);
+              ref.read(noteHistoryProvider.notifier).loadNoteHistory(widget.notePath);
             },
             icon: const Icon(Icons.refresh_rounded, size: 18),
             label: const Text('Retry'),
@@ -216,7 +216,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
           Icon(
             Icons.history_rounded,
             size: 48,
-            color: Theme.of(context).colorScheme.tertiary.withOpacity(0.5),
+            color: Theme.of(context).colorScheme.tertiary.withValues(alpha: 0.5),
           ),
           const SizedBox(height: 16),
           Text(
@@ -244,7 +244,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
       separatorBuilder: (context, index) => Divider(
         height: 1,
         indent: 72,
-        color: Theme.of(context).colorScheme.outline.withOpacity(0.2),
+            color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
       ),
       itemBuilder: (context, index) {
         final commit = commits[index];
@@ -255,7 +255,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
           isLatest: isLatest,
           onTap: () async {
             await ref
-                .read(notesProvider.notifier)
+                .read(noteHistoryProvider.notifier)
                 .loadNoteVersion(widget.notePath, commit.sha);
           },
         );
@@ -269,7 +269,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: AppTheme.md, vertical: 8),
           decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.secondary.withOpacity(0.1),
+            color: Theme.of(context).colorScheme.secondary.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(AppTheme.radiusSm),
           ),
           child: Row(
@@ -349,7 +349,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
       horizontalRuleDecoration: BoxDecoration(
         border: Border(
           top: BorderSide(
-            color: Theme.of(context).colorScheme.outline.withOpacity(0.5),
+            color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.5),
             width: 1,
           ),
         ),
@@ -364,7 +364,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
         color: Theme.of(context).colorScheme.onSurface,
       ).copyWith(fontFamilyFallback: _fontFallback),
       tableBorder: TableBorder.all(
-        color: Theme.of(context).colorScheme.outline.withOpacity(0.3),
+        color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
         width: 1,
       ),
     );
@@ -410,13 +410,13 @@ class _CommitTile extends StatelessWidget {
                 height: 40,
                 decoration: BoxDecoration(
                   color: isLatest
-                      ? Theme.of(context).colorScheme.primary.withOpacity(0.1)
+                      ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.1)
                       : Theme.of(context).colorScheme.surface,
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
                     color: isLatest
-                        ? Theme.of(context).colorScheme.primary.withOpacity(0.3)
-                        : Theme.of(context).colorScheme.outline.withOpacity(0.2),
+                        ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.3)
+                        : Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
                   ),
                 ),
                 child: Icon(
@@ -476,7 +476,7 @@ class _CommitTile extends StatelessWidget {
               Icon(
                 Icons.chevron_right_rounded,
                 size: 20,
-                color: Theme.of(context).colorScheme.tertiary.withOpacity(0.5),
+                color: Theme.of(context).colorScheme.tertiary.withValues(alpha: 0.5),
               ),
             ],
           ),

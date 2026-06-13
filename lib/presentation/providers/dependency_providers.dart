@@ -32,6 +32,13 @@ final secureStorageProvider = Provider<FlutterSecureStorage>(
 // ==================== USER CONFIG ====================
 
 final userConfigProvider = StateProvider<UserConfig?>((ref) => null);
+final authenticatedUserConfigProvider = Provider<UserConfig>((ref) {
+  final userConfig = ref.watch(userConfigProvider);
+  if (userConfig == null) {
+    throw StateError('User not authenticated');
+  }
+  return userConfig;
+});
 
 // ==================== DATA SOURCES ====================
 
@@ -41,18 +48,19 @@ final localStorageDataSourceProvider = Provider<ILocalStorageDataSource>(
   ),
 );
 
-final githubRemoteDataSourceProvider = Provider<IGitHubRemoteDataSource>((ref) {
-  final userConfig = ref.watch(userConfigProvider);
-  if (userConfig == null) {
-    throw Exception('User not authenticated');
-  }
-  
+final githubRemoteDataSourceForConfigProvider =
+    Provider.family<IGitHubRemoteDataSource, UserConfig>((ref, userConfig) {
   return GitHubRemoteDataSource(
     dio: ref.watch(dioProvider),
     username: userConfig.username,
     repository: userConfig.repository,
     pat: userConfig.pat,
   );
+});
+
+final githubRemoteDataSourceProvider = Provider<IGitHubRemoteDataSource>((ref) {
+  final userConfig = ref.watch(authenticatedUserConfigProvider);
+  return ref.watch(githubRemoteDataSourceForConfigProvider(userConfig));
 });
 
 // ==================== REPOSITORIES ====================
@@ -62,6 +70,13 @@ final localStorageRepositoryProvider = Provider<ILocalStorageRepository>(
     localDataSource: ref.watch(localStorageDataSourceProvider),
   ),
 );
+
+final githubRepositoryForConfigProvider =
+    Provider.family<IGitHubRepository, UserConfig>((ref, userConfig) {
+  return GitHubRepositoryImpl(
+    remoteDataSource: ref.watch(githubRemoteDataSourceForConfigProvider(userConfig)),
+  );
+});
 
 final githubRepositoryProvider = Provider<IGitHubRepository>((ref) {
   return GitHubRepositoryImpl(
@@ -73,7 +88,8 @@ final githubRepositoryProvider = Provider<IGitHubRepository>((ref) {
 
 final loginUseCaseProvider = Provider<Login>(
   (ref) => Login(
-    githubRepository: ref.watch(githubRepositoryProvider),
+    githubRepositoryResolver: (config) =>
+        ref.read(githubRepositoryForConfigProvider(config)),
     localStorageRepository: ref.watch(localStorageRepositoryProvider),
   ),
 );

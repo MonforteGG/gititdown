@@ -23,7 +23,7 @@ class _GitHubFooterState extends State<GitHubFooter> {
 
   @override
   Widget build(BuildContext context) {
-    final textColor = Theme.of(context).colorScheme.onSurface.withOpacity(0.6);
+    final textColor = Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6);
     final hoverColor = Theme.of(context).colorScheme.onSurface;
 
     return Row(

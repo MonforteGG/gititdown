@@ -203,7 +203,7 @@ class GitHubRemoteDataSource implements IGitHubRemoteDataSource {
           .toList();
 
       if (visibleEntries.isNotEmpty) {
-        throw ValidationFailure(
+        throw const ValidationFailure(
           message: 'Folder must be empty before deleting it.',
           statusCode: 422,
         );

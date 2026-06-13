@@ -79,7 +79,7 @@ class _GitHubStarsButtonState extends State<GitHubStarsButton> {
               : Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(
+                    const Icon(
                       Icons.star_border,
                       size: 14,
                       color: Colors.white,

@@ -4,6 +4,9 @@ import '../../core/utils/usecase.dart';
 import '../../domain/entities/user_config.dart';
 import '../../domain/usecases/login.dart';
 import 'dependency_providers.dart';
+import 'note_history_provider.dart';
+import 'notes_provider.dart';
+import 'search_provider.dart';
 
 // Auth State
 enum AuthStatus { initial, loading, authenticated, unauthenticated, error }
@@ -26,11 +29,12 @@ class AuthState {
     UserConfig? userConfig,
     Failure? failure,
     bool? isCheckingStoredAuth,
+    bool clearFailure = false,
   }) {
     return AuthState(
       status: status ?? this.status,
       userConfig: userConfig ?? this.userConfig,
-      failure: failure ?? this.failure,
+      failure: clearFailure ? null : (failure ?? this.failure),
       isCheckingStoredAuth: isCheckingStoredAuth ?? this.isCheckingStoredAuth,
     );
   }
@@ -43,9 +47,17 @@ class AuthNotifier extends StateNotifier<AuthState> {
     _checkExistingAuth();
   }
 
+  void _clearSessionState() {
+    _ref.read(userConfigProvider.notifier).state = null;
+    _ref.read(notesProvider.notifier).reset();
+    _ref.read(vaultSearchProvider.notifier).reset();
+    _ref.read(noteHistoryProvider.notifier).reset();
+  }
+
   Future<void> _checkExistingAuth() async {
     state = state.copyWith(
       status: AuthStatus.loading,
+      clearFailure: true,
       isCheckingStoredAuth: true,
     );
     
@@ -53,20 +65,26 @@ class AuthNotifier extends StateNotifier<AuthState> {
     final hasValidConfig = await localStorageRepo.hasValidConfig();
     
     hasValidConfig.fold(
-      (failure) => state = state.copyWith(
-        status: AuthStatus.unauthenticated,
-        failure: failure,
-        isCheckingStoredAuth: false,
-      ),
+      (failure) {
+        _clearSessionState();
+        state = state.copyWith(
+          status: AuthStatus.unauthenticated,
+          failure: failure,
+          isCheckingStoredAuth: false,
+        );
+      },
       (hasValid) async {
         if (hasValid) {
           final configResult = await localStorageRepo.getUserConfig();
           configResult.fold(
-            (failure) => state = state.copyWith(
-              status: AuthStatus.unauthenticated,
-              failure: failure,
-              isCheckingStoredAuth: false,
-            ),
+            (failure) {
+              _clearSessionState();
+              state = state.copyWith(
+                status: AuthStatus.unauthenticated,
+                failure: failure,
+                isCheckingStoredAuth: false,
+              );
+            },
             (config) {
               if (config != null) {
                 _ref.read(userConfigProvider.notifier).state = config;
@@ -76,6 +94,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
                   isCheckingStoredAuth: false,
                 );
               } else {
+                _clearSessionState();
                 state = state.copyWith(
                   status: AuthStatus.unauthenticated,
                   isCheckingStoredAuth: false,
@@ -84,6 +103,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
             },
           );
         } else {
+          _clearSessionState();
           state = state.copyWith(
             status: AuthStatus.unauthenticated,
             isCheckingStoredAuth: false,
@@ -96,7 +116,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
   Future<void> login(String username, String repository, String pat) async {
     state = state.copyWith(
       status: AuthStatus.loading,
-      failure: null,
+      clearFailure: true,
       isCheckingStoredAuth: false,
     );
     
@@ -105,16 +125,13 @@ class AuthNotifier extends StateNotifier<AuthState> {
       repository: repository,
       pat: pat,
     );
-    
-    // Temporarily set the user config so the use case can access it
-    _ref.read(userConfigProvider.notifier).state = config;
-    
+
     final loginUseCase = _ref.read(loginUseCaseProvider);
     final result = await loginUseCase(LoginParams(config: config));
     
     result.fold(
       (failure) {
-        _ref.read(userConfigProvider.notifier).state = null;
+        _clearSessionState();
         state = state.copyWith(
           status: AuthStatus.unauthenticated,
           failure: failure,
@@ -122,6 +139,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
         );
       },
       (success) {
+        _ref.read(userConfigProvider.notifier).state = config;
         state = state.copyWith(
           status: AuthStatus.authenticated,
           userConfig: config,
@@ -147,7 +165,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
         isCheckingStoredAuth: false,
       ),
       (_) {
-        _ref.read(userConfigProvider.notifier).state = null;
+        _clearSessionState();
         state = const AuthState(
           status: AuthStatus.unauthenticated,
           isCheckingStoredAuth: false,
@@ -158,7 +176,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
   void clearError() {
     state = state.copyWith(
-      failure: null,
+      clearFailure: true,
       status: AuthStatus.unauthenticated,
       isCheckingStoredAuth: false,
     );

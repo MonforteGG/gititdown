@@ -67,13 +67,13 @@ class NotebookPage extends StatelessWidget {
           boxShadow: [
             // Primary shadow - elevation
             BoxShadow(
-              color: Colors.black.withOpacity(0.08),
+              color: Colors.black.withValues(alpha: 0.08),
               blurRadius: 24,
               offset: const Offset(0, 8),
             ),
             // Secondary shadow - depth
             BoxShadow(
-              color: Colors.black.withOpacity(0.04),
+              color: Colors.black.withValues(alpha: 0.04),
               blurRadius: 48,
               offset: const Offset(0, 16),
             ),
@@ -109,7 +109,7 @@ class NotebookBackground extends StatelessWidget {
         Positioned.fill(
           child: CustomPaint(
             painter: GridPainter(
-              color: AppTheme.inkBlack.withOpacity(0.035),
+              color: AppTheme.inkBlack.withValues(alpha: 0.035),
               spacing: 32,
             ),
           ),

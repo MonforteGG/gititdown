@@ -8,8 +8,10 @@ import '../../config/theme.dart';
 import '../../core/error/failures.dart';
 import '../../domain/entities/note.dart';
 import '../../presentation/providers/notes_provider.dart';
+import '../../presentation/providers/search_provider.dart';
 import 'audio_player_screen.dart';
 import 'history_screen.dart';
+import '../widgets/editor_components.dart';
 import '../widgets/github_footer.dart';
 import '../widgets/notebook_background.dart';
 
@@ -81,7 +83,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     }
 
     SchedulerBinding.instance.addPostFrameCallback((_) {
-      ref.read(notesProvider.notifier).loadVaultEntries();
+      ref.read(vaultSearchProvider.notifier).loadVaultEntries();
     });
   }
 
@@ -144,7 +146,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
             Container(
               padding: const EdgeInsets.all(4),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.2),
+                color: Colors.white.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(6),
               ),
               child: const Icon(Icons.error_outline, color: Colors.white, size: 18),
@@ -168,7 +170,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
             Container(
               padding: const EdgeInsets.all(4),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.2),
+                color: Colors.white.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(6),
               ),
               child: const Icon(Icons.check_circle_outline, color: Colors.white, size: 18),
@@ -189,7 +191,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
 
     final result = await showDialog<String>(
       context: context,
-      builder: (context) => _UnsavedChangesDialog(),
+      builder: (context) => const UnsavedChangesDialog(),
     );
 
     if (result == 'save') {
@@ -199,6 +201,12 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
       return true;
     }
     return false;
+  }
+
+  Future<void> _handleBlockedPop() async {
+    if (await _onWillPop() && mounted) {
+      Navigator.of(context).pop();
+    }
   }
 
   Future<void> _saveNote() async {
@@ -226,6 +234,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     final success = await ref.read(notesProvider.notifier).saveNote(note);
 
     if (success) {
+      if (!mounted) return;
       _showSuccessSnackbar('Note saved');
       setState(() {
         _hasChanges = false;
@@ -407,7 +416,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     }
 
     final query = afterOpen.trim();
-    final vaultEntries = ref.read(notesProvider).vaultEntries;
+    final vaultEntries = ref.read(vaultSearchProvider).vaultEntries;
     final fileEntries = vaultEntries.where((entry) => entry.isFile).toList();
     final normalizedQuery = query.toLowerCase();
 
@@ -683,14 +692,17 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
 
     final rawTarget = Uri.decodeComponent(uri.path.replaceFirst('/', ''));
     final parsedTarget = _parseWikiLinkTarget(rawTarget);
-    final notifier = ref.read(notesProvider.notifier);
-    final notesState = ref.read(notesProvider);
+    final notifier = ref.read(vaultSearchProvider.notifier);
+    final searchState = ref.read(vaultSearchProvider);
 
-    if (notesState.vaultEntries.isEmpty) {
+    if (searchState.vaultEntries.isEmpty) {
       await notifier.loadVaultEntries();
     }
 
-    final targetNote = notifier.findNoteByWikiLink(parsedTarget.path);
+    final targetNote = notifier.findNoteByWikiLink(
+      parsedTarget.path,
+      currentPath: ref.read(notesProvider).currentPath,
+    );
 
     if (targetNote == null) {
       if (!mounted) return;
@@ -726,8 +738,12 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
       }
     });
 
-    return WillPopScope(
-      onWillPop: _onWillPop,
+    return PopScope(
+      canPop: !_hasChanges,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop || !_hasChanges) return;
+        _handleBlockedPop();
+      },
       child: Scaffold(
         body: Stack(
           children: [
@@ -735,7 +751,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
             Positioned.fill(
               child: CustomPaint(
                 painter: GridPainter(
-                  color: AppTheme.inkBlack.withOpacity(0.035),
+                  color: AppTheme.inkBlack.withValues(alpha: 0.035),
                   spacing: 32,
                 ),
               ),
@@ -803,7 +819,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
         color: Colors.white,
         border: Border(
           bottom: BorderSide(
-            color: Theme.of(context).colorScheme.outline.withOpacity(0.2),
+            color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
           ),
         ),
       ),
@@ -813,7 +829,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
           IconButton(
             icon: const Icon(Icons.arrow_back_rounded),
             onPressed: () async {
-              if (await _onWillPop()) {
+              if (await _onWillPop() && context.mounted) {
                 Navigator.of(context).pop();
               }
             },
@@ -879,19 +895,19 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
               color: Theme.of(context).colorScheme.surface,
               borderRadius: BorderRadius.circular(AppTheme.radiusSm),
               border: Border.all(
-                color: Theme.of(context).colorScheme.outline.withOpacity(0.3),
+                color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
               ),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                _ModeButton(
+                ModeButton(
                   icon: Icons.visibility_rounded,
                   label: 'View',
                   isSelected: _mode == EditorMode.view,
                   onTap: () => _toggleMode(EditorMode.view),
                 ),
-                _ModeButton(
+                ModeButton(
                   icon: Icons.edit_rounded,
                   label: 'Edit',
                   isSelected: _mode == EditorMode.edit,
@@ -916,7 +932,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                     _hasChanges ? Icons.save_outlined : Icons.check_rounded,
                     color: _mode == EditorMode.edit && _hasChanges
                         ? Theme.of(context).colorScheme.onSurface
-                        : Theme.of(context).colorScheme.tertiary.withOpacity(0.5),
+                        : Theme.of(context).colorScheme.tertiary.withValues(alpha: 0.5),
                   ),
             onPressed: _mode == EditorMode.edit && _hasChanges && !isSaving
                 ? _saveNote
@@ -969,7 +985,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
           hintStyle: GoogleFonts.playfairDisplay(
             fontSize: 24,
             fontWeight: FontWeight.w600,
-            color: Theme.of(context).colorScheme.tertiary.withOpacity(0.5),
+            color: Theme.of(context).colorScheme.tertiary.withValues(alpha: 0.5),
           ).copyWith(fontFamilyFallback: _fontFallback),
           border: InputBorder.none,
           enabledBorder: InputBorder.none,
@@ -1038,19 +1054,19 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
           fontSize: 16,
           color: Theme.of(context).colorScheme.primary,
           decoration: TextDecoration.underline,
-          decorationColor: Theme.of(context).colorScheme.primary.withOpacity(0.4),
+          decorationColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.4),
         ).copyWith(fontFamilyFallback: _fontFallback),
         // Code
         code: GoogleFonts.jetBrainsMono(
           fontSize: 14,
           color: Theme.of(context).colorScheme.primary,
-          backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.08),
+          backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.08),
         ).copyWith(fontFamilyFallback: _fontFallback),
         codeblockDecoration: BoxDecoration(
           color: const Color(0xFFF8F6F4),
           borderRadius: BorderRadius.circular(AppTheme.radiusMd),
           border: Border.all(
-            color: Theme.of(context).colorScheme.outline.withOpacity(0.3),
+            color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
           ),
         ),
         codeblockPadding: const EdgeInsets.all(AppTheme.md),
@@ -1080,7 +1096,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
         horizontalRuleDecoration: BoxDecoration(
           border: Border(
             top: BorderSide(
-              color: Theme.of(context).colorScheme.outline.withOpacity(0.5),
+              color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.5),
               width: 1,
             ),
           ),
@@ -1096,7 +1112,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
           color: Theme.of(context).colorScheme.onSurface,
         ).copyWith(fontFamilyFallback: _fontFallback),
         tableBorder: TableBorder.all(
-          color: Theme.of(context).colorScheme.outline.withOpacity(0.3),
+          color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
           width: 1,
         ),
         tableHeadAlign: TextAlign.left,
@@ -1149,7 +1165,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                 hintStyle: GoogleFonts.jetBrainsMono(
                   fontSize: 14,
                   height: 1.7,
-                  color: Theme.of(context).colorScheme.tertiary.withOpacity(0.4),
+                  color: Theme.of(context).colorScheme.tertiary.withValues(alpha: 0.4),
                 ).copyWith(fontFamilyFallback: _fontFallback),
                 border: InputBorder.none,
                 enabledBorder: InputBorder.none,
@@ -1176,7 +1192,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(AppTheme.radiusMd),
                   border: Border.all(
-                    color: Theme.of(context).colorScheme.outline.withOpacity(0.25),
+                    color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.25),
                   ),
                 ),
                 child: ListView.separated(
@@ -1184,7 +1200,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                   itemCount: _wikiSuggestions.length,
                   separatorBuilder: (_, __) => Divider(
                     height: 1,
-                    color: Theme.of(context).colorScheme.outline.withOpacity(0.15),
+                    color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.15),
                   ),
                   itemBuilder: (context, index) {
                     final suggestion = _wikiSuggestions[index];
@@ -1229,25 +1245,25 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
       decoration: BoxDecoration(
         color: colorScheme.surface,
         borderRadius: BorderRadius.circular(AppTheme.radiusMd),
-        border: Border.all(color: colorScheme.outline.withOpacity(0.16)),
+        border: Border.all(color: colorScheme.outline.withValues(alpha: 0.16)),
       ),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: Row(
           children: [
-            _MarkdownToolbarButton(
+            MarkdownToolbarButton(
               label: 'H1',
               icon: Icons.title_rounded,
               enabled: !isSaving,
               onTap: () => _prefixSelectedLines('# ', placeholder: 'Heading'),
             ),
-            _MarkdownToolbarButton(
+            MarkdownToolbarButton(
               label: 'H2',
               icon: Icons.format_size_rounded,
               enabled: !isSaving,
               onTap: () => _prefixSelectedLines('## ', placeholder: 'Section'),
             ),
-            _MarkdownToolbarButton(
+            MarkdownToolbarButton(
               label: 'Bold',
               icon: Icons.format_bold_rounded,
               enabled: !isSaving,
@@ -1257,7 +1273,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                 placeholder: 'bold text',
               ),
             ),
-            _MarkdownToolbarButton(
+            MarkdownToolbarButton(
               label: 'Italic',
               icon: Icons.format_italic_rounded,
               enabled: !isSaving,
@@ -1267,37 +1283,37 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                 placeholder: 'italic text',
               ),
             ),
-            _MarkdownToolbarButton(
+            MarkdownToolbarButton(
               label: 'List',
               icon: Icons.format_list_bulleted_rounded,
               enabled: !isSaving,
               onTap: () => _prefixSelectedLines('- ', placeholder: 'List item'),
             ),
-            _MarkdownToolbarButton(
+            MarkdownToolbarButton(
               label: 'Task',
               icon: Icons.check_box_outlined,
               enabled: !isSaving,
               onTap: () => _prefixSelectedLines('- [ ] ', placeholder: 'Task'),
             ),
-            _MarkdownToolbarButton(
+            MarkdownToolbarButton(
               label: 'Quote',
               icon: Icons.format_quote_rounded,
               enabled: !isSaving,
               onTap: () => _prefixSelectedLines('> ', placeholder: 'Quote'),
             ),
-            _MarkdownToolbarButton(
+            MarkdownToolbarButton(
               label: 'Code',
               icon: Icons.code_rounded,
               enabled: !isSaving,
               onTap: _insertCodeBlock,
             ),
-            _MarkdownToolbarButton(
+            MarkdownToolbarButton(
               label: 'Link',
               icon: Icons.link_rounded,
               enabled: !isSaving,
               onTap: _insertMarkdownLink,
             ),
-            _MarkdownToolbarButton(
+            MarkdownToolbarButton(
               label: 'Wiki',
               icon: Icons.auto_awesome_rounded,
               enabled: !isSaving,
@@ -1306,168 +1322,6 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
           ],
         ),
       ),
-    );
-  }
-}
-
-class _MarkdownToolbarButton extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  final VoidCallback onTap;
-  final bool enabled;
-
-  const _MarkdownToolbarButton({
-    required this.label,
-    required this.icon,
-    required this.onTap,
-    required this.enabled,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Padding(
-      padding: const EdgeInsets.only(right: 8),
-      child: InkWell(
-        onTap: enabled ? onTap : null,
-        borderRadius: BorderRadius.circular(AppTheme.radiusSm),
-        child: Ink(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          decoration: BoxDecoration(
-            color: enabled
-                ? colorScheme.primary.withOpacity(0.08)
-                : colorScheme.outline.withOpacity(0.08),
-            borderRadius: BorderRadius.circular(AppTheme.radiusSm),
-            border: Border.all(
-              color: enabled
-                  ? colorScheme.primary.withOpacity(0.18)
-                  : colorScheme.outline.withOpacity(0.12),
-            ),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                icon,
-                size: 16,
-                color: enabled ? colorScheme.primary : colorScheme.tertiary,
-              ),
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: enabled ? colorScheme.primary : colorScheme.tertiary,
-                ).copyWith(fontFamilyFallback: _fontFallback),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// Mode Toggle Button
-class _ModeButton extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final bool isSelected;
-  final VoidCallback onTap;
-
-  const _ModeButton({
-    required this.icon,
-    required this.label,
-    required this.isSelected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? Theme.of(context).colorScheme.primary
-              : Theme.of(context).colorScheme.outline.withOpacity(0.08),
-          borderRadius: BorderRadius.circular(AppTheme.radiusSm - 2),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              size: 16,
-              color: isSelected
-                  ? Theme.of(context).colorScheme.onPrimary
-                  : Theme.of(context).colorScheme.tertiary.withOpacity(0.6),
-            ),
-            const SizedBox(width: 4),
-            Text(
-              label,
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: isSelected
-                    ? Theme.of(context).colorScheme.onPrimary
-                    : Theme.of(context).colorScheme.tertiary.withOpacity(0.6),
-              ).copyWith(fontFamilyFallback: _fontFallback),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// Unsaved Changes Dialog
-class _UnsavedChangesDialog extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.secondary.withOpacity(0.15),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(
-              Icons.edit_note_rounded,
-              size: 20,
-              color: Theme.of(context).colorScheme.secondary,
-            ),
-          ),
-          const SizedBox(width: 12),
-          const Text('Unsaved Changes'),
-        ],
-      ),
-      content: const Text(
-        'You have unsaved changes. What would you like to do?',
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop('discard'),
-          child: Text(
-            'Discard',
-            style: TextStyle(color: Theme.of(context).colorScheme.error),
-          ),
-        ),
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(null),
-          child: const Text('Keep Editing'),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.of(context).pop('save'),
-          child: const Text('Save'),
-        ),
-      ],
     );
   }
 }
