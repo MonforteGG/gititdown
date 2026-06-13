@@ -2,9 +2,9 @@ import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../config/constants.dart';
-import '../../core/error/failures.dart';
 import '../../domain/entities/note.dart';
 import '../../domain/entities/user_config.dart';
+import '../../domain/usecases/delete_note.dart';
 import '../../domain/usecases/get_file.dart';
 import '../../domain/usecases/get_file_bytes.dart';
 import '../../domain/usecases/save_note.dart';
@@ -66,49 +66,21 @@ class LibraryPreferencesNotifier extends StateNotifier<LibraryPreferencesState> 
       return;
     }
 
-    final getFileResult = await _ref.read(getFileUseCaseProvider)(
-      const GetFileParams(path: AppConstants.appPreferencesPath),
-    );
+    final currentFile = await _getPreferencesFile(AppConstants.appPreferencesPath);
+    if (currentFile != null) {
+      await _loadFromFile(currentFile, AppConstants.appPreferencesPath);
+      return;
+    }
 
-    await getFileResult.fold(
-      (failure) async {
-        if (failure is NotFoundFailure) {
-          state = const LibraryPreferencesState(isLoaded: true);
-          return;
-        }
-        state = const LibraryPreferencesState(isLoaded: true);
-      },
-      (file) async {
-        final bytesResult = await _ref.read(getFileBytesUseCaseProvider)(
-          const GetFileBytesParams(path: AppConstants.appPreferencesPath),
-        );
+    final legacyFile = await _getPreferencesFile(AppConstants.legacyAppPreferencesPath);
+    if (legacyFile != null) {
+      await _loadFromFile(legacyFile, AppConstants.legacyAppPreferencesPath);
+      await _persist();
+      await _deleteLegacyPreferencesFile(legacyFile.sha);
+      return;
+    }
 
-        bytesResult.fold(
-          (_) {
-            state = LibraryPreferencesState(
-              isLoaded: true,
-              prefsSha: file.sha,
-            );
-          },
-          (bytes) {
-            final decoded = utf8.decode(bytes, allowMalformed: true);
-            final parsed = jsonDecode(decoded) as Map<String, dynamic>;
-            final favorites = ((parsed['favorites'] as List<dynamic>?) ?? const [])
-                .cast<String>()
-                .toSet();
-            final recent = ((parsed['recent'] as List<dynamic>?) ?? const [])
-                .cast<String>();
-
-            state = LibraryPreferencesState(
-              isLoaded: true,
-              favorites: favorites,
-              recent: recent,
-              prefsSha: file.sha,
-            );
-          },
-        );
-      },
-    );
+    state = const LibraryPreferencesState(isLoaded: true);
   }
 
   Future<void> handleUserConfigChanged(UserConfig? next) async {
@@ -205,6 +177,57 @@ class LibraryPreferencesNotifier extends StateNotifier<LibraryPreferencesState> 
       (savedFile) {
         state = state.copyWith(prefsSha: savedFile.sha);
       },
+    );
+  }
+
+  Future<Note?> _getPreferencesFile(String path) async {
+    final getFileResult = await _ref.read(getFileUseCaseProvider)(
+      GetFileParams(path: path),
+    );
+
+    return getFileResult.fold(
+      (_) => null,
+      (file) => file,
+    );
+  }
+
+  Future<void> _loadFromFile(Note file, String path) async {
+    final bytesResult = await _ref.read(getFileBytesUseCaseProvider)(
+      GetFileBytesParams(path: path),
+    );
+
+    bytesResult.fold(
+      (_) {
+        state = LibraryPreferencesState(
+          isLoaded: true,
+          prefsSha: file.sha,
+        );
+      },
+      (bytes) {
+        final decoded = utf8.decode(bytes, allowMalformed: true);
+        final parsed = jsonDecode(decoded) as Map<String, dynamic>;
+        final favorites = ((parsed['favorites'] as List<dynamic>?) ?? const [])
+            .cast<String>()
+            .toSet();
+        final recent = ((parsed['recent'] as List<dynamic>?) ?? const [])
+            .cast<String>();
+
+        state = LibraryPreferencesState(
+          isLoaded: true,
+          favorites: favorites,
+          recent: recent,
+          prefsSha: path == AppConstants.appPreferencesPath ? file.sha : '',
+        );
+      },
+    );
+  }
+
+  Future<void> _deleteLegacyPreferencesFile(String sha) async {
+    await _ref.read(deleteNoteUseCaseProvider)(
+      DeleteNoteParams(
+        path: AppConstants.legacyAppPreferencesPath,
+        sha: sha,
+      ),
     );
   }
 }

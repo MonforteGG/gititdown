@@ -30,6 +30,7 @@ class AppConstants {
   static const String defaultCreateFolderMessage = 'Create folder via GitItDown';
   static const String folderPlaceholderFileName = '.gitkeep';
   static const String appPreferencesPath = '.gititdown.json';
+  static const String legacyAppPreferencesPath = '.gititdown/preferences.json';
   
   // GitHub Token URL
   static const String githubTokenUrl = 
