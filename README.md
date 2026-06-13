@@ -3,7 +3,7 @@
 [![GitHub release](https://img.shields.io/github/release/MonforteGG/gititdown.svg)](https://github.com/MonforteGG/gititdown/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**Your notes, versioned and everywhere.** A multi-platform markdown notes app built with Flutter that uses GitHub as a backend.
+**Your notes, versioned and everywhere.** A multi-platform Markdown and audio notes app built with Flutter that uses GitHub as a backend, with first-class support for folder-based vaults such as Obsidian.
 
 ---
 
@@ -20,8 +20,15 @@
 
 ## Features
 
-- **GitHub Backend** - Notes stored as `.md` files in your GitHub repository
-- **Markdown Support** - Full rendering with syntax highlighting
+- **GitHub Backend** - Notes and assets stored directly in your GitHub repository
+- **Vault Navigation** - Browse folder-based vaults with nested directories, root navigation, and an optional tree view
+- **Obsidian-Friendly Wikilinks** - Supports `[[note]]`, `[[folder/note]]`, `[[audio.mp3#12:34|Meeting topic]]`, and timestamped audio links in preview
+- **Global Search** - Search across the full vault by file name, path, and note content
+- **Markdown Editing Toolbar** - Write Markdown from a formatting menu without memorizing syntax
+- **Markdown Support** - Full rendering with syntax highlighting, frontmatter preview formatting, and internal link navigation
+- **Audio Playback** - List and play `.mp3` files from the vault on desktop and web
+- **Referenced Meeting Moments** - Open audio links at exact timestamps and visualize referenced moments from the related meeting note
+- **Folder Management** - Create folders and delete empty folders from inside the app
 - **Version History** - View and restore previous versions of your notes
 - **Cross-Platform** - iOS, Android, Windows, macOS, Linux, and Web
 - **Secure** - PAT stored securely using platform-specific storage
@@ -74,6 +81,36 @@ flutter run
 4. Generate and copy the token
 5. Enter in the app along with your username and repository name
 
+### Recommended Vault Convention
+
+For the best meeting-notes workflow:
+
+- Keep notes inside folders, as you would in an Obsidian vault
+- Store a meeting note and its audio in the same folder
+- Use the same base name for the `.md` and `.mp3` file when possible
+
+Example:
+
+```text
+Reuniones/2026-06-13 - Seguimiento/
+  2026-06-13 - Seguimiento.md
+  2026-06-13 - Seguimiento.mp3
+```
+
+This lets the app automatically detect note-to-audio relationships and show referenced moments in the player.
+
+### Timestamped Audio Links
+
+Inside notes, you can link directly to moments in an audio file:
+
+```md
+[[audio.mp3#03:44|Review of G3C/global interconnection]]
+[[audio.mp3#01:02:15|Final integration decision]]
+[[meetings/audio.mp3?t=754|Open exact moment]]
+```
+
+In preview mode, these links open the audio player at the requested timestamp.
+
 ---
 
 ## Architecture
@@ -120,6 +157,7 @@ flutter build web        # Web (build/web/)
 | flutter_riverpod | State management |
 | dio | HTTP client for GitHub API |
 | flutter_markdown | Markdown rendering |
+| audioplayers | MP3 playback across platforms |
 | flutter_secure_storage | Secure token storage |
 | google_fonts | Typography |
 | url_launcher | Open external links |
