@@ -192,7 +192,7 @@ class LibraryPreferencesNotifier extends StateNotifier<LibraryPreferencesState> 
     final saveResult = await _ref.read(saveNoteUseCaseProvider)(
       SaveNoteParams(
         note: Note(
-          name: 'preferences.json',
+          name: '.gititdown.json',
           path: AppConstants.appPreferencesPath,
           sha: state.prefsSha,
           content: payload,
