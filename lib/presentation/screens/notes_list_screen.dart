@@ -24,6 +24,8 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
     with TickerProviderStateMixin {
   late AnimationController _fabController;
   final TextEditingController _searchController = TextEditingController();
+  bool _showTreeView = false;
+  final Set<String> _expandedTreePaths = <String>{};
 
   @override
   void initState() {
@@ -90,10 +92,26 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
 
     await notifier.loadNotes();
 
-    if (notesState.searchStatus != SearchStatus.initial ||
+    if (_showTreeView ||
+        notesState.searchStatus != SearchStatus.initial ||
         notesState.searchQuery.trim().isNotEmpty) {
       await notifier.loadVaultEntries(force: true);
     }
+  }
+
+  Future<void> _toggleTreeView(bool enabled) async {
+    if (enabled) {
+      final notifier = ref.read(notesProvider.notifier);
+      final state = ref.read(notesProvider);
+      if (state.vaultEntries.isEmpty) {
+        await notifier.loadVaultEntries();
+      }
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _showTreeView = enabled;
+    });
   }
 
   void _createNewNote() {
@@ -255,6 +273,7 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
     final notes = isSearching ? notesState.searchResults : notesState.notes;
     final currentPath = notesState.currentPath;
     final searchMetadata = notesState.searchMatchMetadata;
+    final isTreeMode = !isSearching && currentPath.isEmpty && _showTreeView;
 
     ref.listen(notesProvider, (previous, next) {
       if (next.status == NotesStatus.error && next.failure != null) {
@@ -305,16 +324,23 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
                           onGoUp: currentPath.isEmpty
                               ? null
                               : () => ref.read(notesProvider.notifier).navigateUp(),
+                          showTreeToggle: currentPath.isEmpty && !isSearching,
+                          isTreeViewEnabled: isTreeMode,
+                          onTreeViewChanged: _toggleTreeView,
                         ),
                       ),
                       SliverToBoxAdapter(
-                        child: isLoading && notes.isEmpty
+                        child: isLoading && (isTreeMode ? notesState.vaultEntries.isEmpty : notes.isEmpty)
                             ? _buildLoadingState()
-                            : notes.isEmpty
+                            : !isTreeMode && notes.isEmpty
                                 ? _buildEmptyState(context, currentPath, isSearching)
                                 : null,
                       ),
-                      if (!isLoading || notes.isNotEmpty)
+                      if (isTreeMode)
+                        SliverToBoxAdapter(
+                          child: _buildTreeView(notesState),
+                        )
+                      else if (!isLoading || notes.isNotEmpty)
                         SliverPadding(
                           padding: const EdgeInsets.fromLTRB(
                             AppTheme.md,
@@ -573,6 +599,77 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
         ),
       ),
     );
+  }
+
+  Widget _buildTreeView(NotesState notesState) {
+    final entries = notesState.vaultEntries;
+    if (entries.isEmpty) {
+      return _buildEmptyState(context, '', false);
+    }
+
+    final tree = _buildTreeEntries(entries);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(AppTheme.md, AppTheme.sm, AppTheme.md, AppTheme.xxl),
+      child: Container(
+        padding: const EdgeInsets.all(AppTheme.sm),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.28),
+          borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+          border: Border.all(
+            color: Theme.of(context).colorScheme.outline.withOpacity(0.22),
+          ),
+        ),
+        child: Column(
+          children: [
+            for (final entry in tree)
+              _TreeNodeTile(
+                entry: entry,
+                depth: 0,
+                expandedPaths: _expandedTreePaths,
+                formatFileName: _formatFileName,
+                fileBadgeLabel: _fileBadgeLabel,
+                onToggleExpansion: (path) {
+                  setState(() {
+                    if (!_expandedTreePaths.add(path)) {
+                      _expandedTreePaths.remove(path);
+                    }
+                  });
+                },
+                onOpen: _openNote,
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  List<_TreeEntry> _buildTreeEntries(List<Note> entries) {
+    final childrenByParent = <String, List<Note>>{};
+    for (final entry in entries) {
+      childrenByParent.putIfAbsent(entry.parentPath, () => <Note>[]).add(entry);
+    }
+
+    List<_TreeEntry> buildLevel(String parentPath) {
+      final siblings = [...(childrenByParent[parentPath] ?? const <Note>[])];
+      siblings.sort((a, b) {
+        if (a.isDirectory != b.isDirectory) {
+          return a.isDirectory ? -1 : 1;
+        }
+        return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+      });
+
+      return siblings
+          .map(
+            (entry) => _TreeEntry(
+              note: entry,
+              children: entry.isDirectory ? buildLevel(entry.path) : const <_TreeEntry>[],
+            ),
+          )
+          .toList();
+    }
+
+    return buildLevel('');
   }
 }
 
@@ -879,34 +976,41 @@ class _PathBar extends StatelessWidget {
   final String currentPath;
   final VoidCallback? onGoRoot;
   final VoidCallback? onGoUp;
+  final bool showTreeToggle;
+  final bool isTreeViewEnabled;
+  final ValueChanged<bool>? onTreeViewChanged;
 
   const _PathBar({
     required this.currentPath,
     required this.onGoRoot,
     required this.onGoUp,
+    this.showTreeToggle = false,
+    this.isTreeViewEnabled = false,
+    this.onTreeViewChanged,
   });
 
   @override
   Widget build(BuildContext context) {
     final label = currentPath.isEmpty ? 'Vault root' : currentPath;
+    final colorScheme = Theme.of(context).colorScheme;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(AppTheme.md, AppTheme.sm, AppTheme.md, 0),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.45),
+          color: colorScheme.surfaceContainerHighest.withOpacity(0.45),
           borderRadius: BorderRadius.circular(AppTheme.radiusMd),
           border: Border.all(
-            color: Theme.of(context).colorScheme.outline.withOpacity(0.25),
+            color: colorScheme.outline.withOpacity(0.25),
           ),
         ),
         child: Row(
           children: [
             Icon(
-              Icons.account_tree_outlined,
+              Icons.device_hub_rounded,
               size: 18,
-              color: Theme.of(context).colorScheme.primary,
+              color: colorScheme.primary,
             ),
             const SizedBox(width: 10),
             Expanded(
@@ -919,6 +1023,13 @@ class _PathBar extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
               ),
             ),
+            if (showTreeToggle) ...[
+              const SizedBox(width: 8),
+              _TreeToggleChip(
+                isEnabled: isTreeViewEnabled,
+                onChanged: onTreeViewChanged,
+              ),
+            ],
             if (onGoRoot != null)
               TextButton.icon(
                 onPressed: onGoRoot,
@@ -934,6 +1045,267 @@ class _PathBar extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _TreeToggleChip extends StatefulWidget {
+  final bool isEnabled;
+  final ValueChanged<bool>? onChanged;
+
+  const _TreeToggleChip({
+    required this.isEnabled,
+    required this.onChanged,
+  });
+
+  @override
+  State<_TreeToggleChip> createState() => _TreeToggleChipState();
+}
+
+class _TreeToggleChipState extends State<_TreeToggleChip> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final enabled = widget.isEnabled;
+    final canInteract = widget.onChanged != null;
+    final backgroundColor = colorScheme.surface;
+    final borderColor = colorScheme.outline.withOpacity(_isHovered ? 0.34 : 0.18);
+    final foregroundColor = colorScheme.onSurface;
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOutCubic,
+        decoration: BoxDecoration(
+          color: backgroundColor,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: borderColor),
+          boxShadow: enabled
+              ? [
+                  BoxShadow(
+                    color: colorScheme.shadow.withOpacity(0.06),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ]
+              : null,
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: canInteract ? () => widget.onChanged!.call(!enabled) : null,
+            borderRadius: BorderRadius.circular(999),
+            splashFactory: NoSplash.splashFactory,
+            overlayColor: WidgetStateProperty.all(Colors.transparent),
+            hoverColor: Colors.transparent,
+            highlightColor: Colors.transparent,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    curve: Curves.easeOutCubic,
+                    child: Icon(
+                      Icons.account_tree_rounded,
+                      size: 16,
+                      color: foregroundColor,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  AnimatedDefaultTextStyle(
+                    duration: const Duration(milliseconds: 180),
+                    curve: Curves.easeOutCubic,
+                    style: Theme.of(context).textTheme.bodySmall!.copyWith(
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.2,
+                          color: foregroundColor,
+                        ),
+                    child: const Text('Tree'),
+                  ),
+                  const SizedBox(width: 10),
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    curve: Curves.easeOutCubic,
+                    width: 34,
+                    height: 20,
+                    padding: const EdgeInsets.all(2),
+                    decoration: BoxDecoration(
+                      color: enabled
+                          ? colorScheme.primary.withOpacity(0.16)
+                          : colorScheme.surfaceContainerHighest,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: AnimatedAlign(
+                      duration: const Duration(milliseconds: 180),
+                      curve: Curves.easeOutCubic,
+                      alignment:
+                          enabled ? Alignment.centerRight : Alignment.centerLeft,
+                      child: Container(
+                        width: 14,
+                        height: 14,
+                        decoration: BoxDecoration(
+                          color: enabled ? colorScheme.primary : colorScheme.onSurface,
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TreeEntry {
+  final Note note;
+  final List<_TreeEntry> children;
+
+  const _TreeEntry({
+    required this.note,
+    required this.children,
+  });
+}
+
+class _TreeNodeTile extends StatelessWidget {
+  final _TreeEntry entry;
+  final int depth;
+  final Set<String> expandedPaths;
+  final ValueChanged<String> onToggleExpansion;
+  final ValueChanged<Note> onOpen;
+  final String Function(String) formatFileName;
+  final String Function(Note) fileBadgeLabel;
+
+  const _TreeNodeTile({
+    required this.entry,
+    required this.depth,
+    required this.expandedPaths,
+    required this.onToggleExpansion,
+    required this.onOpen,
+    required this.formatFileName,
+    required this.fileBadgeLabel,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDirectory = entry.note.isDirectory;
+    final isExpanded = expandedPaths.contains(entry.note.path);
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Column(
+      children: [
+        Padding(
+          padding: EdgeInsets.only(left: depth * 18.0, bottom: 4),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+              onTap: () => onOpen(entry.note),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+                ),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 28,
+                      child: isDirectory
+                          ? IconButton(
+                              onPressed: () => onToggleExpansion(entry.note.path),
+                              icon: AnimatedRotation(
+                                turns: isExpanded ? 0.25 : 0,
+                                duration: const Duration(milliseconds: 180),
+                                child: Icon(
+                                  Icons.chevron_right_rounded,
+                                  size: 18,
+                                  color: colorScheme.tertiary,
+                                ),
+                              ),
+                              padding: EdgeInsets.zero,
+                              visualDensity: VisualDensity.compact,
+                              splashRadius: 16,
+                            )
+                          : Icon(
+                              Icons.subdirectory_arrow_right_rounded,
+                              size: 16,
+                              color: colorScheme.outline,
+                            ),
+                    ),
+                    Container(
+                      width: 34,
+                      height: 34,
+                      decoration: BoxDecoration(
+                        color: colorScheme.primary.withOpacity(isDirectory ? 0.12 : 0.08),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(
+                        isDirectory
+                            ? Icons.folder_open_rounded
+                            : entry.note.isAudio
+                                ? Icons.graphic_eq_rounded
+                                : Icons.description_outlined,
+                        size: 18,
+                        color: colorScheme.primary,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        isDirectory ? entry.note.name : formatFileName(entry.note.name),
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              fontWeight: isDirectory ? FontWeight.w700 : FontWeight.w500,
+                            ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    if (!isDirectory)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: colorScheme.surface,
+                          borderRadius: BorderRadius.circular(999),
+                          border: Border.all(
+                            color: colorScheme.outline.withOpacity(0.18),
+                          ),
+                        ),
+                        child: Text(
+                          fileBadgeLabel(entry.note),
+                          style: GoogleFonts.jetBrainsMono(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color: colorScheme.primary,
+                          ).copyWith(fontFamilyFallback: _fontFallback),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+        if (isDirectory && isExpanded)
+          for (final child in entry.children)
+            _TreeNodeTile(
+              entry: child,
+              depth: depth + 1,
+              expandedPaths: expandedPaths,
+              formatFileName: formatFileName,
+              fileBadgeLabel: fileBadgeLabel,
+              onToggleExpansion: onToggleExpansion,
+              onOpen: onOpen,
+            ),
+      ],
     );
   }
 }
