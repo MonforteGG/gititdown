@@ -391,11 +391,25 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   String _normalizeMarkdownForPreview(String content) {
     return content.replaceAllMapped(_wikiLinkPattern, (match) {
       final target = match.group(1)?.trim() ?? '';
-      final alias = match.group(2)?.trim();
-      final label = (alias == null || alias.isEmpty) ? target : alias;
+      final parsedTarget = _parseWikiLinkTarget(target);
+      final label = parsedTarget.startAt != null
+          ? _formatDurationForLink(parsedTarget.startAt!)
+          : target;
       final encodedTarget = Uri.encodeComponent(target);
       return '[$label](gititdown://note/$encodedTarget)';
     });
+  }
+
+  String _formatDurationForLink(Duration duration) {
+    final hours = duration.inHours;
+    final minutes = duration.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final seconds = duration.inSeconds.remainder(60).toString().padLeft(2, '0');
+
+    if (hours > 0) {
+      return '${hours.toString().padLeft(2, '0')}:$minutes:$seconds';
+    }
+
+    return '$minutes:$seconds';
   }
 
   ({String path, Duration? startAt}) _parseWikiLinkTarget(String rawTarget) {
