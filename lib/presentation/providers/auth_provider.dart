@@ -4,6 +4,7 @@ import '../../core/utils/usecase.dart';
 import '../../domain/entities/user_config.dart';
 import '../../domain/usecases/login.dart';
 import 'dependency_providers.dart';
+import 'library_preferences_provider.dart';
 import 'note_history_provider.dart';
 import 'notes_provider.dart';
 import 'search_provider.dart';
@@ -52,6 +53,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
     _ref.read(notesProvider.notifier).reset();
     _ref.read(vaultSearchProvider.notifier).reset();
     _ref.read(noteHistoryProvider.notifier).reset();
+    _ref.read(libraryPreferencesProvider.notifier).reset();
   }
 
   Future<void> _checkExistingAuth() async {

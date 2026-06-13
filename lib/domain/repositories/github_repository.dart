@@ -35,6 +35,12 @@ abstract class IGitHubRepository {
   /// Delete a note
   Future<Either<Failure, void>> deleteNote(String path, String sha);
 
+  /// Rename or move a file entry
+  Future<Either<Failure, Note>> renameEntry(Note note, String newPath);
+
+  /// Rename or move a folder entry recursively
+  Future<Either<Failure, Note>> renameFolder(Note folder, String newPath);
+
   /// Validate credentials by making a test API call
   Future<Either<Failure, bool>> validateCredentials();
 

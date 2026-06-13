@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../data/datasources/github_remote_datasource.dart';
 import '../../data/datasources/secure_storage_local_datasource.dart';
 import '../../data/repositories/github_repository_impl.dart';
@@ -19,6 +20,8 @@ import '../../domain/usecases/get_notes.dart';
 import '../../domain/usecases/get_vault_entries.dart';
 import '../../domain/usecases/login.dart';
 import '../../domain/usecases/logout.dart';
+import '../../domain/usecases/rename_entry.dart';
+import '../../domain/usecases/rename_folder.dart';
 import '../../domain/usecases/save_note.dart';
 
 // ==================== EXTERNAL DEPENDENCIES ====================
@@ -27,6 +30,10 @@ final dioProvider = Provider<Dio>((ref) => Dio());
 
 final secureStorageProvider = Provider<FlutterSecureStorage>(
   (ref) => const FlutterSecureStorage(),
+);
+
+final sharedPreferencesProvider = Provider<Future<SharedPreferences>>(
+  (ref) => SharedPreferences.getInstance(),
 );
 
 // ==================== USER CONFIG ====================
@@ -150,6 +157,18 @@ final createFolderUseCaseProvider = Provider<CreateFolder>(
 
 final deleteFolderUseCaseProvider = Provider<DeleteFolder>(
   (ref) => DeleteFolder(
+    ref.watch(githubRepositoryProvider),
+  ),
+);
+
+final renameEntryUseCaseProvider = Provider<RenameEntry>(
+  (ref) => RenameEntry(
+    ref.watch(githubRepositoryProvider),
+  ),
+);
+
+final renameFolderUseCaseProvider = Provider<RenameFolder>(
+  (ref) => RenameFolder(
     ref.watch(githubRepositoryProvider),
   ),
 );

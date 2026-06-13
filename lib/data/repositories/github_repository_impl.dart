@@ -170,6 +170,89 @@ class GitHubRepositoryImpl implements IGitHubRepository {
   }
 
   @override
+  Future<Either<Failure, Note>> renameEntry(Note note, String newPath) async {
+    try {
+      final sourceFile = await _remoteDataSource.getFile(note.path);
+      final bytes = await _remoteDataSource.getFileBytes(note.path);
+      final createdFile = await _remoteDataSource.createOrUpdateFileBytes(
+        newPath,
+        bytes,
+        null,
+      );
+      await _remoteDataSource.deleteFile(note.path, sourceFile.sha);
+
+      final decodedContent = note.isMarkdown ? Base64Utils.decode(Base64Utils.encodeBytes(bytes)) : '';
+      return Right(createdFile.toEntity(decodedContent: decodedContent));
+    } on Failure catch (e) {
+      return Left(e);
+    } catch (e) {
+      return Left(ServerFailure(message: 'Unexpected error: $e'));
+    }
+  }
+
+  @override
+  Future<Either<Failure, Note>> renameFolder(Note folder, String newPath) async {
+    try {
+      final vaultEntries = await _remoteDataSource.getVaultEntries();
+      final descendantEntries = vaultEntries
+          .map((file) => file.toEntity())
+          .where(
+            (entry) => entry.path == folder.path || entry.path.startsWith('${folder.path}/'),
+          )
+          .toList();
+
+      final descendantDirectories = descendantEntries
+          .where((entry) => entry.isDirectory)
+          .toList()
+        ..sort((a, b) => a.path.length.compareTo(b.path.length));
+
+      final descendantFiles = descendantEntries
+          .where((entry) => entry.isFile)
+          .toList()
+        ..sort((a, b) => a.path.length.compareTo(b.path.length));
+
+      if (descendantEntries.length == 1 && descendantDirectories.length == 1) {
+        await _remoteDataSource.createFolder(newPath);
+        await _remoteDataSource.deleteFolder(folder.path);
+      } else {
+        for (final directory in descendantDirectories) {
+          final targetPath = directory.path == folder.path
+              ? newPath
+              : directory.path.replaceFirst('${folder.path}/', '$newPath/');
+          await _remoteDataSource.createFolder(targetPath);
+        }
+
+        for (final file in descendantFiles) {
+          final targetPath = file.path == folder.path
+              ? newPath
+              : file.path.replaceFirst('${folder.path}/', '$newPath/');
+          final bytes = await _remoteDataSource.getFileBytes(file.path);
+          await _remoteDataSource.createOrUpdateFileBytes(targetPath, bytes, null);
+          await _remoteDataSource.deleteFile(file.path, file.sha);
+        }
+
+        for (final directory in descendantDirectories.reversed) {
+          await _remoteDataSource.deleteFolder(directory.path);
+        }
+      }
+
+      final folderName = newPath.split('/').last;
+      return Right(
+        Note(
+          name: folderName,
+          path: newPath,
+          sha: '',
+          type: NoteType.directory,
+        ),
+      );
+    } on Failure catch (e) {
+      return Left(e);
+    } catch (e) {
+      return Left(ServerFailure(message: 'Unexpected error: $e'));
+    }
+  }
+
+  @override
   Future<Either<Failure, bool>> validateCredentials() async {
     try {
       final isValid = await _remoteDataSource.validateCredentials();

@@ -12,6 +12,7 @@ abstract class IGitHubRemoteDataSource {
   Future<GitHubFileModel> getFile(String path);
   Future<Uint8List> getFileBytes(String path, {String? commitSha});
   Future<GitHubFileModel> createOrUpdateFile(String path, String content, String? sha);
+  Future<GitHubFileModel> createOrUpdateFileBytes(String path, Uint8List bytes, String? sha);
   Future<void> createFolder(String path);
   Future<void> deleteFolder(String path);
   Future<void> deleteFile(String path, String sha);
@@ -160,6 +161,33 @@ class GitHubRemoteDataSource implements IGitHubRemoteDataSource {
             ? AppConstants.defaultCreateMessage 
             : AppConstants.defaultCommitMessage,
         'content': encodedContent,
+        if (sha != null) 'sha': sha,
+      };
+
+      final response = await _dio.put(
+        '$_repoPath/contents/$path',
+        data: body,
+      );
+
+      final contentData = response.data['content'] as Map<String, dynamic>;
+      return GitHubFileModel.fromJson(contentData);
+    } on DioException catch (e) {
+      throw _handleDioError(e);
+    }
+  }
+
+  @override
+  Future<GitHubFileModel> createOrUpdateFileBytes(
+    String path,
+    Uint8List bytes,
+    String? sha,
+  ) async {
+    try {
+      final body = {
+        'message': sha == null
+            ? AppConstants.defaultCreateMessage
+            : AppConstants.defaultCommitMessage,
+        'content': Base64Utils.encodeBytes(bytes),
         if (sha != null) 'sha': sha,
       };
 

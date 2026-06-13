@@ -6,14 +6,19 @@ import '../providers/search_provider.dart';
 
 const List<String> notesListFontFallback = ['Noto Sans'];
 
+enum EntryAction { rename, toggleFavorite, delete }
+
 class NoteCard extends StatefulWidget {
   final Note note;
   final int index;
   final VoidCallback onTap;
   final VoidCallback? onDelete;
+  final VoidCallback? onRename;
+  final VoidCallback? onToggleFavorite;
   final String Function(String) formatFileName;
   final String fileBadgeLabel;
   final SearchMatchMetadata? searchMetadata;
+  final bool isFavorite;
 
   const NoteCard({
     super.key,
@@ -21,9 +26,12 @@ class NoteCard extends StatefulWidget {
     required this.index,
     required this.onTap,
     required this.onDelete,
+    required this.onRename,
+    required this.onToggleFavorite,
     required this.formatFileName,
     required this.fileBadgeLabel,
     required this.searchMetadata,
+    this.isFavorite = false,
   });
 
   @override
@@ -139,6 +147,14 @@ class _NoteCardState extends State<NoteCard>
                             children: [
                               Row(
                                 children: [
+                                  if (widget.isFavorite) ...[
+                                    const Icon(
+                                      Icons.star_rounded,
+                                      size: 16,
+                                      color: Color(0xFFC99A1A),
+                                    ),
+                                    const SizedBox(width: 6),
+                                  ],
                                   Expanded(
                                     child: Text(
                                       isDirectory
@@ -205,14 +221,53 @@ class _NoteCardState extends State<NoteCard>
                             ],
                           ),
                         ),
-                        if (widget.onDelete != null) ...[
+                        if (widget.onRename != null ||
+                            widget.onToggleFavorite != null ||
+                            widget.onDelete != null) ...[
                           const SizedBox(width: 8),
-                          IconButton(
-                            onPressed: widget.onDelete,
-                            tooltip: 'Delete',
+                          PopupMenuButton<EntryAction>(
+                            tooltip: 'Actions',
+                            onSelected: (action) {
+                              switch (action) {
+                                case EntryAction.rename:
+                                  widget.onRename?.call();
+                                  break;
+                                case EntryAction.toggleFavorite:
+                                  widget.onToggleFavorite?.call();
+                                  break;
+                                case EntryAction.delete:
+                                  widget.onDelete?.call();
+                                  break;
+                              }
+                            },
+                            itemBuilder: (context) => [
+                              if (widget.onRename != null)
+                                const PopupMenuItem(
+                                  value: EntryAction.rename,
+                                  child: Text('Rename'),
+                                ),
+                              if (widget.onToggleFavorite != null)
+                                PopupMenuItem(
+                                  value: EntryAction.toggleFavorite,
+                                  child: Text(
+                                    widget.isFavorite
+                                        ? 'Remove from favorites'
+                                        : 'Add to favorites',
+                                  ),
+                                ),
+                              if (widget.onDelete != null)
+                                PopupMenuItem(
+                                  value: EntryAction.delete,
+                                  child: Text(
+                                    widget.note.isDirectory
+                                        ? 'Delete folder'
+                                        : 'Delete',
+                                  ),
+                                ),
+                            ],
                             icon: Icon(
-                              Icons.delete_outline_rounded,
-                              color: colorScheme.error,
+                              Icons.more_horiz_rounded,
+                              color: colorScheme.tertiary,
                             ),
                           ),
                         ],
@@ -451,8 +506,12 @@ class TreeNodeTile extends StatelessWidget {
   final ValueChanged<String> onToggleExpansion;
   final ValueChanged<Note> onOpen;
   final ValueChanged<Note>? onDelete;
+  final ValueChanged<Note>? onRename;
+  final ValueChanged<Note>? onToggleFavorite;
   final String Function(String) formatFileName;
   final String Function(Note) fileBadgeLabel;
+  final bool isFavorite;
+  final bool Function(String) isFavoritePath;
 
   const TreeNodeTile({
     super.key,
@@ -462,8 +521,12 @@ class TreeNodeTile extends StatelessWidget {
     required this.onToggleExpansion,
     required this.onOpen,
     required this.onDelete,
+    required this.onRename,
+    required this.onToggleFavorite,
     required this.formatFileName,
     required this.fileBadgeLabel,
+    this.isFavorite = false,
+    required this.isFavoritePath,
   });
 
   @override
@@ -533,13 +596,27 @@ class TreeNodeTile extends StatelessWidget {
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: Text(
-                        isDirectory ? entry.note.name : formatFileName(entry.note.name),
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              fontWeight: isDirectory ? FontWeight.w700 : FontWeight.w500,
+                      child: Row(
+                        children: [
+                          if (isFavorite) ...[
+                            const Icon(
+                              Icons.star_rounded,
+                              size: 14,
+                              color: Color(0xFFC99A1A),
                             ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                            const SizedBox(width: 6),
+                          ],
+                          Expanded(
+                            child: Text(
+                              isDirectory ? entry.note.name : formatFileName(entry.note.name),
+                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    fontWeight: isDirectory ? FontWeight.w700 : FontWeight.w500,
+                                  ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                     if (!isDirectory)
@@ -561,18 +638,53 @@ class TreeNodeTile extends StatelessWidget {
                           ).copyWith(fontFamilyFallback: notesListFontFallback),
                         ),
                       ),
-                    if (onDelete != null) ...[
+                    if (onRename != null ||
+                        onToggleFavorite != null ||
+                        onDelete != null) ...[
                       const SizedBox(width: 6),
-                      IconButton(
-                        onPressed: () => onDelete!.call(entry.note),
-                        tooltip: isDirectory ? 'Delete folder' : 'Delete note',
+                      PopupMenuButton<EntryAction>(
+                        tooltip: 'Actions',
+                        onSelected: (action) {
+                          switch (action) {
+                            case EntryAction.rename:
+                              onRename?.call(entry.note);
+                              break;
+                            case EntryAction.toggleFavorite:
+                              onToggleFavorite?.call(entry.note);
+                              break;
+                            case EntryAction.delete:
+                              onDelete?.call(entry.note);
+                              break;
+                          }
+                        },
+                        itemBuilder: (context) => [
+                          if (onRename != null)
+                            const PopupMenuItem(
+                              value: EntryAction.rename,
+                              child: Text('Rename'),
+                            ),
+                          if (onToggleFavorite != null)
+                            PopupMenuItem(
+                              value: EntryAction.toggleFavorite,
+                              child: Text(
+                                isFavorite
+                                    ? 'Remove from favorites'
+                                    : 'Add to favorites',
+                              ),
+                            ),
+                          if (onDelete != null)
+                            PopupMenuItem(
+                              value: EntryAction.delete,
+                              child: Text(
+                                isDirectory ? 'Delete folder' : 'Delete',
+                              ),
+                            ),
+                        ],
                         icon: Icon(
-                          Icons.delete_outline_rounded,
+                          Icons.more_horiz_rounded,
                           size: 20,
-                          color: colorScheme.error,
+                          color: colorScheme.tertiary,
                         ),
-                        visualDensity: VisualDensity.compact,
-                        splashRadius: 18,
                       ),
                     ],
                   ],
@@ -592,8 +704,255 @@ class TreeNodeTile extends StatelessWidget {
               onToggleExpansion: onToggleExpansion,
               onOpen: onOpen,
               onDelete: onDelete,
+              onRename: onRename,
+              onToggleFavorite: onToggleFavorite,
+              isFavorite: isFavoritePath(child.note.path),
+              isFavoritePath: isFavoritePath,
             ),
       ],
+    );
+  }
+}
+
+class QuickAccessSection extends StatelessWidget {
+  final String title;
+  final IconData icon;
+  final List<Note> entries;
+  final bool isCollapsed;
+  final VoidCallback? onToggleCollapsed;
+  final void Function(Note) onOpen;
+  final void Function(Note) onRename;
+  final void Function(Note) onDelete;
+  final void Function(Note) onToggleFavorite;
+  final bool Function(String) isFavorite;
+  final String Function(String) formatFileName;
+
+  const QuickAccessSection({
+    super.key,
+    required this.title,
+    required this.icon,
+    required this.entries,
+    this.isCollapsed = false,
+    this.onToggleCollapsed,
+    required this.onOpen,
+    required this.onRename,
+    required this.onDelete,
+    required this.onToggleFavorite,
+    required this.isFavorite,
+    required this.formatFileName,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (entries.isEmpty && onToggleCollapsed == null) {
+      return const SizedBox.shrink();
+    }
+
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(AppTheme.md, AppTheme.md, AppTheme.md, 0),
+      child: Container(
+        padding: const EdgeInsets.all(AppTheme.md),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+          border: Border.all(
+            color: colorScheme.outline.withValues(alpha: 0.18),
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+                    onTap: onToggleCollapsed,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 2),
+                      child: Row(
+                        children: [
+                          Icon(icon, size: 18, color: colorScheme.primary),
+                          const SizedBox(width: 8),
+                          Text(
+                            title,
+                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            '(${entries.length})',
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                  color: colorScheme.tertiary,
+                                ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                if (onToggleCollapsed != null)
+                  IconButton(
+                    onPressed: onToggleCollapsed,
+                    tooltip: isCollapsed ? 'Expand favorites' : 'Collapse favorites',
+                    icon: AnimatedRotation(
+                      turns: isCollapsed ? 0 : 0.5,
+                      duration: const Duration(milliseconds: 180),
+                      child: Icon(
+                        Icons.expand_more_rounded,
+                        color: colorScheme.tertiary,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            if (!isCollapsed) ...[
+              const SizedBox(height: AppTheme.sm),
+              if (entries.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(
+                    'No favorites yet',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: colorScheme.tertiary,
+                        ),
+                  ),
+                )
+              else
+                for (var index = 0; index < entries.length; index++) ...[
+                  _QuickAccessEntryTile(
+                    note: entries[index],
+                    onOpen: () => onOpen(entries[index]),
+                    onRename: () => onRename(entries[index]),
+                    onDelete: () => onDelete(entries[index]),
+                    onToggleFavorite: () => onToggleFavorite(entries[index]),
+                    isFavorite: isFavorite(entries[index].path),
+                    formatFileName: formatFileName,
+                  ),
+                  if (index < entries.length - 1)
+                    Divider(
+                      height: 16,
+                      color: colorScheme.outline.withValues(alpha: 0.14),
+                    ),
+                ],
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _QuickAccessEntryTile extends StatelessWidget {
+  final Note note;
+  final VoidCallback onOpen;
+  final VoidCallback onRename;
+  final VoidCallback onDelete;
+  final VoidCallback onToggleFavorite;
+  final bool isFavorite;
+  final String Function(String) formatFileName;
+
+  const _QuickAccessEntryTile({
+    required this.note,
+    required this.onOpen,
+    required this.onRename,
+    required this.onDelete,
+    required this.onToggleFavorite,
+    required this.isFavorite,
+    required this.formatFileName,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+      onTap: onOpen,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Row(
+          children: [
+            Icon(
+              note.isDirectory
+                  ? Icons.folder_open_rounded
+                  : note.isAudio
+                      ? Icons.graphic_eq_rounded
+                      : Icons.description_outlined,
+              size: 18,
+              color: colorScheme.primary,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      if (isFavorite) ...[
+                        const Icon(Icons.star_rounded, size: 14, color: Color(0xFFC99A1A)),
+                        const SizedBox(width: 4),
+                      ],
+                      Expanded(
+                        child: Text(
+                          note.isDirectory ? note.name : formatFileName(note.name),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                fontWeight: FontWeight.w600,
+                              ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    note.path,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: colorScheme.tertiary,
+                        ),
+                  ),
+                ],
+              ),
+            ),
+            PopupMenuButton<EntryAction>(
+              onSelected: (action) {
+                switch (action) {
+                  case EntryAction.rename:
+                    onRename();
+                    break;
+                  case EntryAction.toggleFavorite:
+                    onToggleFavorite();
+                    break;
+                  case EntryAction.delete:
+                    onDelete();
+                    break;
+                }
+              },
+              itemBuilder: (context) => [
+                const PopupMenuItem(
+                  value: EntryAction.rename,
+                  child: Text('Rename'),
+                ),
+                PopupMenuItem(
+                  value: EntryAction.toggleFavorite,
+                  child: Text(isFavorite ? 'Remove from favorites' : 'Add to favorites'),
+                ),
+                PopupMenuItem(
+                  value: EntryAction.delete,
+                  child: Text(note.isDirectory ? 'Delete folder' : 'Delete'),
+                ),
+              ],
+              icon: Icon(Icons.more_horiz_rounded, color: colorScheme.tertiary),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -823,6 +1182,79 @@ class DeleteFolderDialog extends StatelessWidget {
             backgroundColor: Theme.of(context).colorScheme.error,
           ),
           child: const Text('Delete'),
+        ),
+      ],
+    );
+  }
+}
+
+class RenameEntryDialog extends StatefulWidget {
+  final String title;
+  final String initialValue;
+  final bool isDirectory;
+
+  const RenameEntryDialog({
+    super.key,
+    required this.title,
+    required this.initialValue,
+    required this.isDirectory,
+  });
+
+  @override
+  State<RenameEntryDialog> createState() => _RenameEntryDialogState();
+}
+
+class _RenameEntryDialogState extends State<RenameEntryDialog> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initialValue);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(
+              Icons.drive_file_rename_outline_rounded,
+              size: 20,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(child: Text(widget.title)),
+        ],
+      ),
+      content: TextField(
+        controller: _controller,
+        autofocus: true,
+        decoration: InputDecoration(
+          labelText: widget.isDirectory ? 'Folder name' : 'File name',
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop(_controller.text.trim()),
+          child: const Text('Rename'),
         ),
       ],
     );

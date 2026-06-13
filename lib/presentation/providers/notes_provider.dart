@@ -6,8 +6,11 @@ import '../../domain/usecases/delete_folder.dart';
 import '../../domain/usecases/delete_note.dart';
 import '../../domain/usecases/get_note.dart';
 import '../../domain/usecases/get_notes.dart';
+import '../../domain/usecases/rename_entry.dart';
+import '../../domain/usecases/rename_folder.dart';
 import '../../domain/usecases/save_note.dart';
 import 'dependency_providers.dart';
+import 'library_preferences_provider.dart';
 import 'search_provider.dart';
 
 enum NotesStatus { initial, loading, loaded, saving, deleting, error }
@@ -175,6 +178,7 @@ class NotesNotifier extends StateNotifier<NotesState> {
           selectedNote: state.selectedNote?.path == path ? null : state.selectedNote,
         );
         _ref.read(vaultSearchProvider.notifier).removeVaultEntry(path);
+        _ref.read(libraryPreferencesProvider.notifier).removePath(path);
         return true;
       },
     );
@@ -201,6 +205,74 @@ class NotesNotifier extends StateNotifier<NotesState> {
           notes: state.notes.where((note) => note.path != path).toList(),
         );
         _ref.read(vaultSearchProvider.notifier).removeVaultEntry(path, recursive: true);
+        _ref.read(libraryPreferencesProvider.notifier).removePath(path, recursive: true);
+        return true;
+      },
+    );
+  }
+
+  Future<bool> renameEntry(Note note, String newName) async {
+    if (_isDisposed) return false;
+
+    final normalizedName = newName.trim();
+    if (normalizedName.isEmpty) {
+      state = state.copyWith(
+        status: NotesStatus.error,
+        failure: const ValidationFailure(message: 'Name cannot be empty'),
+      );
+      return false;
+    }
+
+    final newPath = note.parentPath.isEmpty ? normalizedName : '${note.parentPath}/$normalizedName';
+    if (newPath == note.path) {
+      return true;
+    }
+
+    state = state.copyWith(status: NotesStatus.saving, clearFailure: true);
+
+    final result = note.isDirectory
+        ? await _ref.read(renameFolderUseCaseProvider)(
+              RenameFolderParams(folder: note, newPath: newPath),
+            )
+        : await _ref.read(renameEntryUseCaseProvider)(
+              RenameEntryParams(note: note, newPath: newPath),
+            );
+
+    return result.fold(
+      (failure) {
+        state = state.copyWith(
+          status: NotesStatus.error,
+          failure: failure,
+        );
+        return false;
+      },
+      (renamedEntry) async {
+        final updatedCurrentPath = _remapPath(state.currentPath, note.path, renamedEntry.path);
+        final updatedSelectedNote = _remapSelectedNote(state.selectedNote, note, renamedEntry);
+        final updatedVisibleNotes = _remapVisibleNotes(
+          state.notes,
+          note,
+          renamedEntry,
+          recursive: note.isDirectory,
+        );
+
+        state = state.copyWith(
+          status: NotesStatus.loaded,
+          notes: updatedVisibleNotes,
+          currentPath: updatedCurrentPath,
+          selectedNote: updatedSelectedNote,
+        );
+
+        await _ref
+            .read(libraryPreferencesProvider.notifier)
+            .replacePath(note.path, renamedEntry.path, recursive: note.isDirectory);
+        _ref.read(vaultSearchProvider.notifier).renameVaultEntry(
+              note.path,
+              renamedEntry,
+              recursive: note.isDirectory,
+            );
+        loadNotes(updatedCurrentPath);
+        _ref.read(vaultSearchProvider.notifier).loadVaultEntries(force: true);
         return true;
       },
     );
@@ -287,6 +359,49 @@ class NotesNotifier extends StateNotifier<NotesState> {
 
   void reset() {
     state = const NotesState();
+  }
+
+  String _remapPath(String currentPath, String oldPath, String newPath) {
+    if (currentPath == oldPath) {
+      return newPath;
+    }
+    if (currentPath.startsWith('$oldPath/')) {
+      return currentPath.replaceFirst('$oldPath/', '$newPath/');
+    }
+    return currentPath;
+  }
+
+  Note? _remapSelectedNote(Note? selectedNote, Note original, Note renamedEntry) {
+    if (selectedNote == null) return null;
+    if (selectedNote.path == original.path) {
+      return renamedEntry;
+    }
+    if (original.isDirectory && selectedNote.path.startsWith('${original.path}/')) {
+      return null;
+    }
+    return selectedNote;
+  }
+
+  List<Note> _remapVisibleNotes(
+    List<Note> visibleNotes,
+    Note original,
+    Note renamedEntry, {
+    required bool recursive,
+  }) {
+    return visibleNotes.map((entry) {
+      if (entry.path == original.path) {
+        return renamedEntry;
+      }
+      if (recursive && entry.path.startsWith('${original.path}/')) {
+        final newPath = entry.path.replaceFirst('${original.path}/', '${renamedEntry.path}/');
+        final newName = newPath.split('/').last;
+        return entry.copyWith(
+          path: newPath,
+          name: newName,
+        );
+      }
+      return entry;
+    }).toList();
   }
 }
 

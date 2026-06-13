@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../config/theme.dart';
 import '../../domain/entities/note.dart';
 import '../../presentation/providers/auth_provider.dart';
+import '../../presentation/providers/library_preferences_provider.dart';
 import '../../presentation/providers/notes_provider.dart';
 import '../../presentation/providers/search_provider.dart';
 import 'audio_player_screen.dart';
@@ -29,6 +30,7 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
   final TextEditingController _searchController = TextEditingController();
   Timer? _searchDebounce;
   bool _showTreeView = false;
+  bool _showFavoritesSection = false;
   final Set<String> _expandedTreePaths = <String>{};
 
   @override
@@ -41,6 +43,7 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
 
     Future.microtask(() {
       ref.read(notesProvider.notifier).loadNotes();
+      ref.read(vaultSearchProvider.notifier).loadVaultEntries();
     });
 
     Future.delayed(const Duration(milliseconds: 300), () {
@@ -258,6 +261,58 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
     }
   }
 
+  Future<void> _renameEntry(Note note) async {
+    final initialValue = note.isDirectory ? note.name : _formatFileName(note.name);
+    final renamedValue = await showDialog<String>(
+      context: context,
+      builder: (context) => RenameEntryDialog(
+        title: note.isDirectory ? 'Rename Folder' : 'Rename Entry',
+        initialValue: initialValue,
+        isDirectory: note.isDirectory,
+      ),
+    );
+
+    if (renamedValue == null || renamedValue.trim().isEmpty) {
+      return;
+    }
+
+    if (renamedValue.contains('/') || renamedValue.contains('\\')) {
+      _showErrorSnackbar('Name cannot contain slashes');
+      return;
+    }
+
+    final normalizedValue = renamedValue.trim();
+    final targetName = note.isDirectory || note.isAudio
+        ? normalizedValue
+        : '$normalizedValue.md';
+
+    final success = await ref.read(notesProvider.notifier).renameEntry(note, targetName);
+    if (!success && mounted) {
+      final error = ref.read(notesProvider).failure?.message ?? 'Failed to rename entry';
+      _showErrorSnackbar(error);
+    }
+  }
+
+  Future<void> _toggleFavorite(Note note) async {
+    final isNowFavorite =
+        await ref.read(libraryPreferencesProvider.notifier).toggleFavorite(note.path);
+    if (!mounted) return;
+    setState(() {
+      if (isNowFavorite) {
+        _showFavoritesSection = true;
+      }
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          isNowFavorite ? 'Added to favorites' : 'Removed from favorites',
+        ),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(milliseconds: 1200),
+      ),
+    );
+  }
+
   String _formatFileName(String name) {
     if (name.endsWith('.md')) {
       return name.substring(0, name.length - 3);
@@ -275,11 +330,17 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
   Widget build(BuildContext context) {
     final notesState = ref.watch(notesProvider);
     final searchState = ref.watch(vaultSearchProvider);
+    final libraryPrefs = ref.watch(libraryPreferencesProvider);
     final isSearching = searchState.query.trim().isNotEmpty;
     final notes = isSearching ? searchState.searchResults : notesState.notes;
     final currentPath = notesState.currentPath;
     final searchMetadata = searchState.searchMatchMetadata;
     final isTreeMode = !isSearching && currentPath.isEmpty && _showTreeView;
+    final noteByPath = {for (final entry in searchState.vaultEntries) entry.path: entry};
+    final favoriteEntries = libraryPrefs.favorites
+        .map((path) => noteByPath[path])
+        .whereType<Note>()
+        .toList();
 
     ref.listen(notesProvider, (previous, next) {
       if (next.status == NotesStatus.error && next.failure != null) {
@@ -340,6 +401,32 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
                           onTreeViewChanged: _toggleTreeView,
                         ),
                       ),
+                      if (!isSearching &&
+                          currentPath.isEmpty &&
+                          libraryPrefs.isLoaded)
+                        SliverToBoxAdapter(
+                          child: Column(
+                            children: [
+                              QuickAccessSection(
+                                title: 'Favorites',
+                                icon: Icons.star_rounded,
+                                entries: favoriteEntries,
+                                isCollapsed: !_showFavoritesSection,
+                                onToggleCollapsed: () {
+                                  setState(() {
+                                    _showFavoritesSection = !_showFavoritesSection;
+                                  });
+                                },
+                                onOpen: _openNote,
+                                onRename: _renameEntry,
+                                onDelete: _deleteNote,
+                                onToggleFavorite: _toggleFavorite,
+                                isFavorite: ref.read(libraryPreferencesProvider.notifier).isFavorite,
+                                formatFileName: _formatFileName,
+                              ),
+                            ],
+                          ),
+                        ),
                       SliverToBoxAdapter(
                         child: isLoading &&
                                 (isTreeMode ? searchState.vaultEntries.isEmpty : notes.isEmpty)
@@ -369,10 +456,13 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
                                   index: index,
                                   onTap: () => _openNote(note),
                                   onDelete: () => _deleteNote(note),
+                                  onRename: () => _renameEntry(note),
+                                  onToggleFavorite: () => _toggleFavorite(note),
                                   formatFileName: _formatFileName,
                                   fileBadgeLabel: _fileBadgeLabel(note),
                                   searchMetadata:
                                       isSearching ? searchMetadata[note.path] : null,
+                                  isFavorite: libraryPrefs.favorites.contains(note.path),
                                 );
                               },
                               childCount: notes.length,
@@ -621,6 +711,7 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
 
   Widget _buildTreeView(VaultSearchState searchState) {
     final entries = searchState.vaultEntries;
+    final libraryPrefs = ref.watch(libraryPreferencesProvider);
     if (entries.isEmpty) {
       return _buildEmptyState(context, '', false);
     }
@@ -656,6 +747,10 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
                 },
                 onOpen: _openNote,
                 onDelete: _deleteNote,
+                onRename: _renameEntry,
+                onToggleFavorite: _toggleFavorite,
+                isFavorite: libraryPrefs.favorites.contains(entry.note.path),
+                isFavoritePath: (path) => libraryPrefs.favorites.contains(path),
               ),
           ],
         ),

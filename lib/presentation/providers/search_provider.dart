@@ -246,6 +246,57 @@ class VaultSearchNotifier extends StateNotifier<VaultSearchState> {
     _applySearchQuery(state.query);
   }
 
+  void renameVaultEntry(String oldPath, Note renamedEntry, {bool recursive = false}) {
+    final updatedEntries = state.vaultEntries.map((entry) {
+      if (entry.path == oldPath) {
+        return renamedEntry;
+      }
+      if (recursive && entry.path.startsWith('$oldPath/')) {
+        final newPath = entry.path.replaceFirst('$oldPath/', '${renamedEntry.path}/');
+        final newName = newPath.split('/').last;
+        return entry.copyWith(
+          path: newPath,
+          name: newName,
+        );
+      }
+      return entry;
+    }).toList()
+      ..sort((a, b) {
+        if (a.type != b.type) {
+          return a.isDirectory ? -1 : 1;
+        }
+        return a.path.toLowerCase().compareTo(b.path.toLowerCase());
+      });
+
+    final updatedContentCache = <String, String>{};
+    final updatedShaCache = <String, String>{};
+
+    for (final entry in state.vaultEntries) {
+      final content = state.noteContentCache[entry.path];
+      final sha = state.noteContentShaCache[entry.path];
+      if (entry.path == oldPath) {
+        if (content != null) updatedContentCache[renamedEntry.path] = content;
+        if (sha != null) updatedShaCache[renamedEntry.path] = sha;
+        continue;
+      }
+      if (recursive && entry.path.startsWith('$oldPath/')) {
+        final newPath = entry.path.replaceFirst('$oldPath/', '${renamedEntry.path}/');
+        if (content != null) updatedContentCache[newPath] = content;
+        if (sha != null) updatedShaCache[newPath] = sha;
+        continue;
+      }
+      if (content != null) updatedContentCache[entry.path] = content;
+      if (sha != null) updatedShaCache[entry.path] = sha;
+    }
+
+    state = state.copyWith(
+      vaultEntries: updatedEntries,
+      noteContentCache: updatedContentCache,
+      noteContentShaCache: updatedShaCache,
+    );
+    _applySearchQuery(state.query);
+  }
+
   Note? findNoteByWikiLink(String rawTarget, {String currentPath = ''}) {
     final target = rawTarget.trim();
     if (target.isEmpty) return null;
