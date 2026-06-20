@@ -10,9 +10,15 @@ abstract class IGitHubRemoteDataSource {
   Future<List<GitHubFileModel>> getFiles(String path);
   Future<List<GitHubFileModel>> getVaultEntries();
   Future<GitHubFileModel> getFile(String path);
-  Future<Uint8List> getFileBytes(String path, {String? commitSha});
-  Future<GitHubFileModel> createOrUpdateFile(String path, String content, String? sha);
-  Future<GitHubFileModel> createOrUpdateFileBytes(String path, Uint8List bytes, String? sha);
+  Future<Uint8List> getFileBytes(
+    String path, {
+    String? commitSha,
+    void Function(int received, int total)? onReceiveProgress,
+  });
+  Future<GitHubFileModel> createOrUpdateFile(
+      String path, String content, String? sha);
+  Future<GitHubFileModel> createOrUpdateFileBytes(
+      String path, Uint8List bytes, String? sha);
   Future<void> createFolder(String path);
   Future<void> deleteFolder(String path);
   Future<void> deleteFile(String path, String sha);
@@ -59,7 +65,8 @@ class GitHubRemoteDataSource implements IGitHubRemoteDataSource {
 
       if (response.data is List) {
         final files = (response.data as List)
-            .map((json) => GitHubFileModel.fromJson(json as Map<String, dynamic>))
+            .map((json) =>
+                GitHubFileModel.fromJson(json as Map<String, dynamic>))
             .where(
               (file) =>
                   file.type == 'dir' ||
@@ -70,7 +77,7 @@ class GitHubRemoteDataSource implements IGitHubRemoteDataSource {
             .toList();
         return files;
       }
-      
+
       return [];
     } on DioException catch (e) {
       throw _handleDioError(e);
@@ -115,7 +122,8 @@ class GitHubRemoteDataSource implements IGitHubRemoteDataSource {
         queryParameters: _freshReadQueryParameters,
       );
 
-      final file = GitHubFileModel.fromJson(response.data as Map<String, dynamic>);
+      final file =
+          GitHubFileModel.fromJson(response.data as Map<String, dynamic>);
 
       return file;
     } on DioException catch (e) {
@@ -124,7 +132,11 @@ class GitHubRemoteDataSource implements IGitHubRemoteDataSource {
   }
 
   @override
-  Future<Uint8List> getFileBytes(String path, {String? commitSha}) async {
+  Future<Uint8List> getFileBytes(
+    String path, {
+    String? commitSha,
+    void Function(int received, int total)? onReceiveProgress,
+  }) async {
     try {
       final response = await _dio.get<List<int>>(
         '$_repoPath/contents/$path',
@@ -139,6 +151,7 @@ class GitHubRemoteDataSource implements IGitHubRemoteDataSource {
             'Accept': 'application/vnd.github.raw+json',
           },
         ),
+        onReceiveProgress: onReceiveProgress,
       );
 
       return Uint8List.fromList(response.data ?? const []);
@@ -155,10 +168,10 @@ class GitHubRemoteDataSource implements IGitHubRemoteDataSource {
   ) async {
     try {
       final encodedContent = Base64Utils.encode(content);
-      
+
       final body = {
-        'message': sha == null 
-            ? AppConstants.defaultCreateMessage 
+        'message': sha == null
+            ? AppConstants.defaultCreateMessage
             : AppConstants.defaultCommitMessage,
         'content': encodedContent,
         if (sha != null) 'sha': sha,
@@ -206,8 +219,7 @@ class GitHubRemoteDataSource implements IGitHubRemoteDataSource {
   @override
   Future<void> createFolder(String path) async {
     try {
-      final placeholderPath =
-          '$path/${AppConstants.folderPlaceholderFileName}';
+      final placeholderPath = '$path/${AppConstants.folderPlaceholderFileName}';
       final body = {
         'message': AppConstants.defaultCreateFolderMessage,
         'content': Base64Utils.encode(''),
@@ -284,7 +296,8 @@ class GitHubRemoteDataSource implements IGitHubRemoteDataSource {
 
       if (response.data is List) {
         final commits = (response.data as List)
-            .map((json) => NoteCommitModel.fromJson(json as Map<String, dynamic>))
+            .map((json) =>
+                NoteCommitModel.fromJson(json as Map<String, dynamic>))
             .toList();
         return commits;
       }
@@ -303,7 +316,8 @@ class GitHubRemoteDataSource implements IGitHubRemoteDataSource {
         queryParameters: {'ref': commitSha},
       );
 
-      final file = GitHubFileModel.fromJson(response.data as Map<String, dynamic>);
+      final file =
+          GitHubFileModel.fromJson(response.data as Map<String, dynamic>);
       return file;
     } on DioException catch (e) {
       throw _handleDioError(e);
@@ -312,23 +326,29 @@ class GitHubRemoteDataSource implements IGitHubRemoteDataSource {
 
   Failure _handleDioError(DioException e) {
     final statusCode = e.response?.statusCode;
-    final message = e.response?.data?['message'] ?? e.message ?? 'Unknown error';
+    final message =
+        e.response?.data?['message'] ?? e.message ?? 'Unknown error';
 
     switch (statusCode) {
       case 401:
-        return AuthenticationFailure(message: 'Invalid or expired token', statusCode: statusCode);
+        return AuthenticationFailure(
+            message: 'Invalid or expired token', statusCode: statusCode);
       case 404:
-        return NotFoundFailure(message: 'Repository not found', statusCode: statusCode);
+        return NotFoundFailure(
+            message: 'Repository not found', statusCode: statusCode);
       case 409:
-        return ConflictFailure(message: 'File was modified externally', statusCode: statusCode);
+        return ConflictFailure(
+            message: 'File was modified externally', statusCode: statusCode);
       case 422:
         return ValidationFailure(message: message, statusCode: statusCode);
       default:
-        if (e.type == DioExceptionType.connectionError || 
+        if (e.type == DioExceptionType.connectionError ||
             e.type == DioExceptionType.connectionTimeout) {
-          return NetworkFailure(message: 'Network error: $message', statusCode: statusCode);
+          return NetworkFailure(
+              message: 'Network error: $message', statusCode: statusCode);
         }
-        return ServerFailure(message: 'Server error: $message', statusCode: statusCode);
+        return ServerFailure(
+            message: 'Server error: $message', statusCode: statusCode);
     }
   }
 }

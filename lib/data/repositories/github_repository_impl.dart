@@ -52,7 +52,8 @@ class GitHubRepositoryImpl implements IGitHubRepository {
   }
 
   @override
-  Future<Either<Failure, Note>> getFile(String path, {String? commitSha}) async {
+  Future<Either<Failure, Note>> getFile(String path,
+      {String? commitSha}) async {
     try {
       final file = commitSha != null
           ? await _remoteDataSource.getFileAtCommit(path, commitSha)
@@ -70,11 +71,13 @@ class GitHubRepositoryImpl implements IGitHubRepository {
   Future<Either<Failure, Uint8List>> getFileBytes(
     String path, {
     String? commitSha,
+    void Function(int received, int total)? onReceiveProgress,
   }) async {
     try {
       final bytes = await _remoteDataSource.getFileBytes(
         path,
         commitSha: commitSha,
+        onReceiveProgress: onReceiveProgress,
       );
 
       return Right(bytes);
@@ -86,7 +89,8 @@ class GitHubRepositoryImpl implements IGitHubRepository {
   }
 
   @override
-  Future<Either<Failure, Note>> getNote(String path, {String? commitSha}) async {
+  Future<Either<Failure, Note>> getNote(String path,
+      {String? commitSha}) async {
     try {
       final file = commitSha != null
           ? await _remoteDataSource.getFileAtCommit(path, commitSha)
@@ -113,7 +117,7 @@ class GitHubRepositoryImpl implements IGitHubRepository {
         note.content,
         note.sha.isNotEmpty ? note.sha : null,
       );
-      
+
       return Right(updatedFile.toEntity(decodedContent: note.content));
     } on Failure catch (e) {
       return Left(e);
@@ -181,7 +185,9 @@ class GitHubRepositoryImpl implements IGitHubRepository {
       );
       await _remoteDataSource.deleteFile(note.path, sourceFile.sha);
 
-      final decodedContent = note.isMarkdown ? Base64Utils.decode(Base64Utils.encodeBytes(bytes)) : '';
+      final decodedContent = note.isMarkdown
+          ? Base64Utils.decode(Base64Utils.encodeBytes(bytes))
+          : '';
       return Right(createdFile.toEntity(decodedContent: decodedContent));
     } on Failure catch (e) {
       return Left(e);
@@ -191,13 +197,16 @@ class GitHubRepositoryImpl implements IGitHubRepository {
   }
 
   @override
-  Future<Either<Failure, Note>> renameFolder(Note folder, String newPath) async {
+  Future<Either<Failure, Note>> renameFolder(
+      Note folder, String newPath) async {
     try {
       final vaultEntries = await _remoteDataSource.getVaultEntries();
       final descendantEntries = vaultEntries
           .map((file) => file.toEntity())
           .where(
-            (entry) => entry.path == folder.path || entry.path.startsWith('${folder.path}/'),
+            (entry) =>
+                entry.path == folder.path ||
+                entry.path.startsWith('${folder.path}/'),
           )
           .toList();
 
@@ -227,7 +236,8 @@ class GitHubRepositoryImpl implements IGitHubRepository {
               ? newPath
               : file.path.replaceFirst('${folder.path}/', '$newPath/');
           final bytes = await _remoteDataSource.getFileBytes(file.path);
-          await _remoteDataSource.createOrUpdateFileBytes(targetPath, bytes, null);
+          await _remoteDataSource.createOrUpdateFileBytes(
+              targetPath, bytes, null);
           await _remoteDataSource.deleteFile(file.path, file.sha);
         }
 

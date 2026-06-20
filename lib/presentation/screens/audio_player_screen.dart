@@ -68,6 +68,9 @@ class _AudioPlayerScreenState extends ConsumerState<AudioPlayerScreen> {
   bool _initialPlaybackHandled = false;
   List<AudioReference> _references = const [];
   String? _referenceSourcePath;
+  double? _downloadProgress;
+  int? _downloadedBytes;
+  int? _totalBytes;
 
   @override
   void initState() {
@@ -100,6 +103,9 @@ class _AudioPlayerScreenState extends ConsumerState<AudioPlayerScreen> {
     setState(() {
       _isLoading = true;
       _errorMessage = null;
+      _downloadProgress = null;
+      _downloadedBytes = null;
+      _totalBytes = null;
     });
 
     final note = widget.note.downloadUrl != null
@@ -142,7 +148,18 @@ class _AudioPlayerScreenState extends ConsumerState<AudioPlayerScreen> {
   Future<void> _loadWebAudio(Note note) async {
     final getFileBytesUseCase = ref.read(getFileBytesUseCaseProvider);
     final result = await getFileBytesUseCase(
-      GetFileBytesParams(path: note.path),
+      GetFileBytesParams(
+        path: note.path,
+        onReceiveProgress: (received, total) {
+          if (!mounted) return;
+          setState(() {
+            _downloadedBytes = received >= 0 ? received : null;
+            _totalBytes = total > 0 ? total : null;
+            _downloadProgress =
+                total > 0 ? (received / total).clamp(0.0, 1.0) : null;
+          });
+        },
+      ),
     );
 
     final bytes = result.fold<Uint8List?>((_) => null, (value) => value);
@@ -221,7 +238,8 @@ class _AudioPlayerScreenState extends ConsumerState<AudioPlayerScreen> {
       final parsedTarget = _parseWikiLinkTarget(rawTarget);
       final timestamp = parsedTarget.startAt;
 
-      if (timestamp == null || !_matchesAudioTarget(parsedTarget.path, audioNote)) {
+      if (timestamp == null ||
+          !_matchesAudioTarget(parsedTarget.path, audioNote)) {
         continue;
       }
 
@@ -418,7 +436,8 @@ class _AudioPlayerScreenState extends ConsumerState<AudioPlayerScreen> {
 
   Future<void> _seekBy(Duration offset) async {
     final target = _position + offset;
-    final maxPosition = _duration.inMilliseconds > 0 ? _duration : Duration.zero;
+    final maxPosition =
+        _duration.inMilliseconds > 0 ? _duration : Duration.zero;
     final clamped = target < Duration.zero
         ? Duration.zero
         : target > maxPosition
@@ -453,6 +472,20 @@ class _AudioPlayerScreenState extends ConsumerState<AudioPlayerScreen> {
     return '$minutes:$seconds';
   }
 
+  String _formatByteCount(int bytes) {
+    const units = ['B', 'KB', 'MB', 'GB'];
+    var value = bytes.toDouble();
+    var unitIndex = 0;
+
+    while (value >= 1024 && unitIndex < units.length - 1) {
+      value /= 1024;
+      unitIndex++;
+    }
+
+    final decimals = unitIndex == 0 ? 0 : 1;
+    return '${value.toStringAsFixed(decimals)} ${units[unitIndex]}';
+  }
+
   int get _activeReferenceIndex {
     if (_references.isEmpty) return -1;
 
@@ -473,22 +506,23 @@ class _AudioPlayerScreenState extends ConsumerState<AudioPlayerScreen> {
   @override
   Widget build(BuildContext context) {
     final note = _resolvedNote ?? widget.note;
-    final progressMax =
-        _duration.inMilliseconds > 0 ? _duration.inMilliseconds.toDouble() : 1.0;
+    final progressMax = _duration.inMilliseconds > 0
+        ? _duration.inMilliseconds.toDouble()
+        : 1.0;
     final progressValue = _position.inMilliseconds
         .clamp(0, _duration.inMilliseconds > 0 ? _duration.inMilliseconds : 1)
         .toDouble();
     final theme = Theme.of(context);
-    final folderPath = note.parentPath.isEmpty ? 'Repository root' : note.parentPath;
-    final activeReference = _activeReferenceIndex >= 0
-        ? _references[_activeReferenceIndex]
-        : null;
+    final folderPath =
+        note.parentPath.isEmpty ? 'Repository root' : note.parentPath;
+    final activeReference =
+        _activeReferenceIndex >= 0 ? _references[_activeReferenceIndex] : null;
     final groupedReferences = <String, List<(int, AudioReference)>>{};
     for (var i = 0; i < _references.length; i++) {
       final reference = _references[i];
       groupedReferences.putIfAbsent(reference.sectionTitle, () => []).add(
-            (i, reference),
-          );
+        (i, reference),
+      );
     }
 
     return Scaffold(
@@ -540,9 +574,14 @@ class _AudioPlayerScreenState extends ConsumerState<AudioPlayerScreen> {
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(AppTheme.lg),
                 child: _isLoading
-                    ? const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 96),
-                        child: Center(child: CircularProgressIndicator()),
+                    ? Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 96),
+                        child: _AudioLoadingState(
+                          progress: _downloadProgress,
+                          downloadedBytes: _downloadedBytes,
+                          totalBytes: _totalBytes,
+                          formatByteCount: _formatByteCount,
+                        ),
                       )
                     : _errorMessage != null
                         ? _ErrorState(
@@ -581,7 +620,8 @@ class _AudioPlayerScreenState extends ConsumerState<AudioPlayerScreen> {
                                   ),
                                   child: LayoutBuilder(
                                     builder: (context, constraints) {
-                                      final isCompact = constraints.maxWidth < 640;
+                                      final isCompact =
+                                          constraints.maxWidth < 640;
                                       return Flex(
                                         direction: isCompact
                                             ? Axis.vertical
@@ -594,8 +634,10 @@ class _AudioPlayerScreenState extends ConsumerState<AudioPlayerScreen> {
                                             width: 120,
                                             height: 120,
                                             decoration: BoxDecoration(
-                                              color: Colors.white.withValues(alpha: 0.72),
-                                              borderRadius: BorderRadius.circular(30),
+                                              color: Colors.white
+                                                  .withValues(alpha: 0.72),
+                                              borderRadius:
+                                                  BorderRadius.circular(30),
                                               boxShadow: [
                                                 BoxShadow(
                                                   color: AppTheme.inkBlack
@@ -622,7 +664,8 @@ class _AudioPlayerScreenState extends ConsumerState<AudioPlayerScreen> {
                                               children: [
                                                 Text(
                                                   'Vault Audio',
-                                                  style: GoogleFonts.playfairDisplay(
+                                                  style: GoogleFonts
+                                                      .playfairDisplay(
                                                     fontSize: 18,
                                                     fontWeight: FontWeight.w600,
                                                     color: AppTheme.warmGray,
@@ -631,33 +674,39 @@ class _AudioPlayerScreenState extends ConsumerState<AudioPlayerScreen> {
                                                         _fontFallback,
                                                   ),
                                                 ),
-                                                const SizedBox(height: AppTheme.sm),
+                                                const SizedBox(
+                                                    height: AppTheme.sm),
                                                 Text(
                                                   note.name,
-                                                  style: theme.textTheme.headlineLarge,
+                                                  style: theme
+                                                      .textTheme.headlineLarge,
                                                 ),
-                                                const SizedBox(height: AppTheme.sm),
+                                                const SizedBox(
+                                                    height: AppTheme.sm),
                                                 Text(
                                                   folderPath,
-                                                  style: theme.textTheme.bodyMedium
+                                                  style: theme
+                                                      .textTheme.bodyMedium
                                                       ?.copyWith(
                                                     color: AppTheme.warmGray,
                                                   ),
                                                 ),
-                                                const SizedBox(height: AppTheme.md),
+                                                const SizedBox(
+                                                    height: AppTheme.md),
                                                 Wrap(
                                                   spacing: AppTheme.sm,
                                                   runSpacing: AppTheme.sm,
                                                   children: [
                                                     const _MetaChip(
-                                                      icon:
-                                                          Icons.audio_file_rounded,
+                                                      icon: Icons
+                                                          .audio_file_rounded,
                                                       label: 'MP3 file',
                                                     ),
                                                     _MetaChip(
-                                                      icon: Icons.schedule_rounded,
-                                                      label:
-                                                          _formatDuration(_duration),
+                                                      icon: Icons
+                                                          .schedule_rounded,
+                                                      label: _formatDuration(
+                                                          _duration),
                                                     ),
                                                   ],
                                                 ),
@@ -772,7 +821,8 @@ class _AudioPlayerScreenState extends ConsumerState<AudioPlayerScreen> {
                                                       style: theme
                                                           .textTheme.bodyMedium
                                                           ?.copyWith(
-                                                        color: AppTheme.inkBlack,
+                                                        color:
+                                                            AppTheme.inkBlack,
                                                         fontWeight:
                                                             FontWeight.w700,
                                                       ),
@@ -786,7 +836,8 @@ class _AudioPlayerScreenState extends ConsumerState<AudioPlayerScreen> {
                                       SliderTheme(
                                         data: SliderTheme.of(context).copyWith(
                                           trackHeight: 6,
-                                          activeTrackColor: AppTheme.brandOrange,
+                                          activeTrackColor:
+                                              AppTheme.brandOrange,
                                           inactiveTrackColor:
                                               const Color(0xFFE3DDD4),
                                           thumbColor: AppTheme.brandOrange,
@@ -843,7 +894,8 @@ class _AudioPlayerScreenState extends ConsumerState<AudioPlayerScreen> {
                                             .map(
                                               (speed) => ChoiceChip(
                                                 label: Text('${speed}x'),
-                                                selected: _playbackRate == speed,
+                                                selected:
+                                                    _playbackRate == speed,
                                                 onSelected: (_) =>
                                                     _setPlaybackRate(speed),
                                               ),
@@ -856,8 +908,8 @@ class _AudioPlayerScreenState extends ConsumerState<AudioPlayerScreen> {
                                             MainAxisAlignment.center,
                                         children: [
                                           _RoundControlButton(
-                                            onPressed: () =>
-                                                _seekBy(const Duration(seconds: -10)),
+                                            onPressed: () => _seekBy(
+                                                const Duration(seconds: -10)),
                                             icon: Icons.replay_10_rounded,
                                             label: '-10s',
                                             backgroundColor:
@@ -867,10 +919,10 @@ class _AudioPlayerScreenState extends ConsumerState<AudioPlayerScreen> {
                                           const SizedBox(width: AppTheme.md),
                                           _RoundControlButton(
                                             onPressed: _togglePlayback,
-                                            icon:
-                                                _playerState == PlayerState.playing
-                                                    ? Icons.pause_rounded
-                                                    : Icons.play_arrow_rounded,
+                                            icon: _playerState ==
+                                                    PlayerState.playing
+                                                ? Icons.pause_rounded
+                                                : Icons.play_arrow_rounded,
                                             label: _playerState ==
                                                     PlayerState.playing
                                                 ? 'Pause'
@@ -883,8 +935,8 @@ class _AudioPlayerScreenState extends ConsumerState<AudioPlayerScreen> {
                                           ),
                                           const SizedBox(width: AppTheme.md),
                                           _RoundControlButton(
-                                            onPressed: () =>
-                                                _seekBy(const Duration(seconds: 10)),
+                                            onPressed: () => _seekBy(
+                                                const Duration(seconds: 10)),
                                             icon: Icons.forward_10_rounded,
                                             label: '+10s',
                                             backgroundColor:
@@ -901,7 +953,8 @@ class _AudioPlayerScreenState extends ConsumerState<AudioPlayerScreen> {
                                   Container(
                                     padding: const EdgeInsets.all(AppTheme.lg),
                                     decoration: BoxDecoration(
-                                      color: Colors.white.withValues(alpha: 0.72),
+                                      color:
+                                          Colors.white.withValues(alpha: 0.72),
                                       borderRadius: BorderRadius.circular(
                                         AppTheme.radiusLg,
                                       ),
@@ -955,8 +1008,8 @@ class _AudioPlayerScreenState extends ConsumerState<AudioPlayerScreen> {
                                             for (final item in entry.value) {
                                               final index = item.$1;
                                               final reference = item.$2;
-                                              final isActive =
-                                                  index == _activeReferenceIndex;
+                                              final isActive = index ==
+                                                  _activeReferenceIndex;
 
                                               yield Padding(
                                                 padding: const EdgeInsets.only(
@@ -971,7 +1024,8 @@ class _AudioPlayerScreenState extends ConsumerState<AudioPlayerScreen> {
                                                   onTap: () async {
                                                     if (isActive &&
                                                         _playerState ==
-                                                            PlayerState.playing) {
+                                                            PlayerState
+                                                                .playing) {
                                                       await _player.pause();
                                                       return;
                                                     }
@@ -1114,9 +1168,8 @@ class _ReferenceCard extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(AppTheme.radiusMd),
             border: Border.all(
-              color: isActive
-                  ? const Color(0xFFE2C49E)
-                  : const Color(0xFFE7DED2),
+              color:
+                  isActive ? const Color(0xFFE2C49E) : const Color(0xFFE7DED2),
               width: isActive ? 1.5 : 1,
             ),
           ),
@@ -1352,6 +1405,97 @@ class _ErrorState extends StatelessWidget {
           child: const Text('Retry'),
         ),
       ],
+    );
+  }
+}
+
+class _AudioLoadingState extends StatelessWidget {
+  final double? progress;
+  final int? downloadedBytes;
+  final int? totalBytes;
+  final String Function(int bytes) formatByteCount;
+
+  const _AudioLoadingState({
+    required this.progress,
+    required this.downloadedBytes,
+    required this.totalBytes,
+    required this.formatByteCount,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final determinateProgress = progress;
+    final downloadedLabel =
+        downloadedBytes != null ? formatByteCount(downloadedBytes!) : null;
+    final totalLabel = totalBytes != null ? formatByteCount(totalBytes!) : null;
+    final percentageLabel = determinateProgress != null
+        ? '${(determinateProgress * 100).round()}%'
+        : null;
+
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 420),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Loading audio',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    color: AppTheme.inkBlack,
+                    fontWeight: FontWeight.w700,
+                  ),
+            ),
+            const SizedBox(height: AppTheme.md),
+            Text(
+              determinateProgress != null
+                  ? 'Downloading MP3 from GitHub'
+                  : 'Preparing authenticated download',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppTheme.warmGray,
+                  ),
+            ),
+            const SizedBox(height: AppTheme.lg),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(999),
+              child: LinearProgressIndicator(
+                minHeight: 10,
+                value: determinateProgress,
+                backgroundColor: const Color(0xFFE7DED2),
+                valueColor: const AlwaysStoppedAnimation<Color>(
+                  AppTheme.brandOrange,
+                ),
+              ),
+            ),
+            const SizedBox(height: AppTheme.sm),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  downloadedLabel != null
+                      ? totalLabel != null
+                          ? '$downloadedLabel / $totalLabel'
+                          : downloadedLabel
+                      : 'Starting...',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppTheme.warmGray,
+                      ),
+                ),
+                if (percentageLabel != null)
+                  Text(
+                    percentageLabel,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppTheme.inkBlack,
+                          fontWeight: FontWeight.w700,
+                        ),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

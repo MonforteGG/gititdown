@@ -16,6 +16,7 @@ class GetFileBytes implements UseCase<Uint8List, GetFileBytesParams> {
     return repository.getFileBytes(
       params.path,
       commitSha: params.commitSha,
+      onReceiveProgress: params.onReceiveProgress,
     );
   }
 }
@@ -23,9 +24,11 @@ class GetFileBytes implements UseCase<Uint8List, GetFileBytesParams> {
 class GetFileBytesParams {
   final String path;
   final String? commitSha;
+  final void Function(int received, int total)? onReceiveProgress;
 
   const GetFileBytesParams({
     required this.path,
     this.commitSha,
+    this.onReceiveProgress,
   });
 }

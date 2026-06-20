@@ -18,6 +18,7 @@ abstract class IGitHubRepository {
   Future<Either<Failure, Uint8List>> getFileBytes(
     String path, {
     String? commitSha,
+    void Function(int received, int total)? onReceiveProgress,
   });
 
   /// Get a single note with its content
