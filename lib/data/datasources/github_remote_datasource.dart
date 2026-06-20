@@ -72,7 +72,8 @@ class GitHubRemoteDataSource implements IGitHubRemoteDataSource {
                   file.type == 'dir' ||
                   (file.type == 'file' &&
                       (file.name.endsWith(AppConstants.markdownExtension) ||
-                          file.name.endsWith(AppConstants.audioExtension))),
+                          file.name.endsWith(AppConstants.audioExtension) ||
+                          file.name.endsWith(AppConstants.pdfExtension))),
             )
             .toList();
         return files;
@@ -103,7 +104,8 @@ class GitHubRemoteDataSource implements IGitHubRemoteDataSource {
                 file.type == 'dir' ||
                 (file.type == 'file' &&
                     (file.name.endsWith(AppConstants.markdownExtension) ||
-                        file.name.endsWith(AppConstants.audioExtension)) &&
+                        file.name.endsWith(AppConstants.audioExtension) ||
+                        file.name.endsWith(AppConstants.pdfExtension)) &&
                     file.name != AppConstants.folderPlaceholderFileName),
           )
           .toList();

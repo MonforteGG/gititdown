@@ -61,6 +61,24 @@ void main() {
 
       expect(note1, note2);
     });
+
+    test('should identify supported file types', () {
+      const markdown = Note(name: 'test.md', path: 'notes/test.md', sha: '1');
+      const audio = Note(name: 'clip.mp3', path: 'audio/clip.mp3', sha: '2');
+      const pdf = Note(name: 'paper.pdf', path: 'docs/paper.pdf', sha: '3');
+
+      expect(markdown.isMarkdown, isTrue);
+      expect(markdown.isAudio, isFalse);
+      expect(markdown.isPdf, isFalse);
+
+      expect(audio.isMarkdown, isFalse);
+      expect(audio.isAudio, isTrue);
+      expect(audio.isPdf, isFalse);
+
+      expect(pdf.isMarkdown, isFalse);
+      expect(pdf.isAudio, isFalse);
+      expect(pdf.isPdf, isTrue);
+    });
   });
 
   group('UserConfig Entity', () {

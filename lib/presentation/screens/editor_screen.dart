@@ -11,6 +11,7 @@ import '../../presentation/providers/notes_provider.dart';
 import '../../presentation/providers/search_provider.dart';
 import 'audio_player_screen.dart';
 import 'history_screen.dart';
+import 'pdf_viewer_screen.dart';
 import '../widgets/editor_components.dart';
 import '../widgets/github_footer.dart';
 import '../widgets/notebook_background.dart';
@@ -31,7 +32,8 @@ class EditorScreen extends ConsumerStatefulWidget {
 
 class _EditorScreenState extends ConsumerState<EditorScreen>
     with TickerProviderStateMixin {
-  static final RegExp _wikiLinkPattern = RegExp(r'\[\[([^\]|]+)(?:\|([^\]]+))?\]\]');
+  static final RegExp _wikiLinkPattern =
+      RegExp(r'\[\[([^\]|]+)(?:\|([^\]]+))?\]\]');
   static final RegExp _timeStampPattern = RegExp(
     r'^(?:(\d+):)?([0-5]?\d):([0-5]?\d)$',
   );
@@ -54,7 +56,8 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   void initState() {
     super.initState();
     _editorFocusNode = FocusNode();
-    _contentController = TextEditingController(text: widget.note?.content ?? '');
+    _contentController =
+        TextEditingController(text: widget.note?.content ?? '');
     _nameController = TextEditingController(
       text: widget.note != null ? _stripExtension(widget.note!.name) : '',
     );
@@ -149,7 +152,8 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                 color: Colors.white.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(6),
               ),
-              child: const Icon(Icons.error_outline, color: Colors.white, size: 18),
+              child: const Icon(Icons.error_outline,
+                  color: Colors.white, size: 18),
             ),
             const SizedBox(width: 12),
             Expanded(child: Text(message)),
@@ -173,7 +177,8 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                 color: Colors.white.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(6),
               ),
-              child: const Icon(Icons.check_circle_outline, color: Colors.white, size: 18),
+              child: const Icon(Icons.check_circle_outline,
+                  color: Colors.white, size: 18),
             ),
             const SizedBox(width: 12),
             Expanded(child: Text(message)),
@@ -248,7 +253,8 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
       if (notesState.errorMessage != null) {
         _showErrorSnackbar(notesState.errorMessage!);
       } else {
-        _showErrorSnackbar(notesState.failure?.message ?? 'Failed to save note');
+        _showErrorSnackbar(
+            notesState.failure?.message ?? 'Failed to save note');
       }
     }
   }
@@ -290,7 +296,8 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     final text = _contentController.text;
     final start = selection.start;
     final end = selection.end;
-    final selectedText = start == end ? placeholder : text.substring(start, end);
+    final selectedText =
+        start == end ? placeholder : text.substring(start, end);
     final replacement = '$prefix$selectedText$suffix';
     final updatedText = text.replaceRange(start, end, replacement);
 
@@ -326,8 +333,9 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
         .map((line) => line.isEmpty ? prefix.trimRight() : '$prefix$line')
         .join('\n');
 
-    final updatedText =
-        text.substring(0, normalizedStart) + replacement + text.substring(normalizedEnd);
+    final updatedText = text.substring(0, normalizedStart) +
+        replacement +
+        text.substring(normalizedEnd);
 
     _updateEditorValue(
       text: updatedText,
@@ -343,14 +351,16 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     final text = _contentController.text;
     final start = selection.start;
     final end = selection.end;
-    final selectedText = start == end ? 'link text' : text.substring(start, end);
+    final selectedText =
+        start == end ? 'link text' : text.substring(start, end);
     final replacement = '[$selectedText](https://)';
     final updatedText = text.replaceRange(start, end, replacement);
     final urlStart = start + selectedText.length + 3;
 
     _updateEditorValue(
       text: updatedText,
-      selection: TextSelection(baseOffset: urlStart, extentOffset: urlStart + 8),
+      selection:
+          TextSelection(baseOffset: urlStart, extentOffset: urlStart + 8),
     );
   }
 
@@ -363,7 +373,8 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     final text = _contentController.text;
     final start = selection.start;
     final end = selection.end;
-    final selectedText = start == end ? '\ncode\n' : '\n${text.substring(start, end)}\n';
+    final selectedText =
+        start == end ? '\ncode\n' : '\n${text.substring(start, end)}\n';
     final replacement = '```$selectedText```';
     final updatedText = text.replaceRange(start, end, replacement);
 
@@ -404,7 +415,9 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     }
 
     final afterOpen = textBeforeCursor.substring(openIndex + 2);
-    if (afterOpen.contains(']]') || afterOpen.contains('\n') || afterOpen.contains('|')) {
+    if (afterOpen.contains(']]') ||
+        afterOpen.contains('\n') ||
+        afterOpen.contains('|')) {
       if (_activeWikiQuery != null || _wikiSuggestions.isNotEmpty) {
         setState(() {
           _activeWikiQuery = null;
@@ -420,13 +433,16 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     final fileEntries = vaultEntries.where((entry) => entry.isFile).toList();
     final normalizedQuery = query.toLowerCase();
 
-    final suggestions = fileEntries.where((entry) {
-      if (normalizedQuery.isEmpty) return true;
-      final displayPath = entry.path.toLowerCase();
-      final displayName = _stripExtension(entry.name).toLowerCase();
-      return displayName.contains(normalizedQuery) ||
-          displayPath.contains(normalizedQuery);
-    }).take(8).toList();
+    final suggestions = fileEntries
+        .where((entry) {
+          if (normalizedQuery.isEmpty) return true;
+          final displayPath = entry.path.toLowerCase();
+          final displayName = _stripExtension(entry.name).toLowerCase();
+          return displayName.contains(normalizedQuery) ||
+              displayPath.contains(normalizedQuery);
+        })
+        .take(8)
+        .toList();
 
     setState(() {
       _activeWikiQuery = query;
@@ -451,8 +467,9 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
         ? note.path.substring(0, note.path.length - 3)
         : note.path;
     final replacement = '[[$displayTarget]]';
-    final updatedText =
-        text.substring(0, openIndex) + replacement + text.substring(cursorIndex);
+    final updatedText = text.substring(0, openIndex) +
+        replacement +
+        text.substring(cursorIndex);
     final newCursorOffset = openIndex + replacement.length;
 
     _contentController.value = TextEditingValue(
@@ -682,7 +699,8 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     return Duration(hours: hours, minutes: minutes, seconds: seconds);
   }
 
-  Future<void> _handlePreviewLinkTap(String text, String? href, String title) async {
+  Future<void> _handlePreviewLinkTap(
+      String text, String? href, String title) async {
     if (href == null) return;
 
     final uri = Uri.tryParse(href);
@@ -720,7 +738,9 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                 initialPosition: parsedTarget.startAt,
                 autoplay: parsedTarget.startAt != null,
               )
-            : EditorScreen(note: targetNote),
+            : targetNote.isPdf
+                ? PdfViewerScreen(note: targetNote)
+                : EditorScreen(note: targetNote),
       ),
     );
   }
@@ -782,12 +802,14 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                                   if (_mode == EditorMode.edit)
                                     _buildMarkdownToolbar(isSaving),
                                   // Name Field
-                                  if (widget.note == null && _mode == EditorMode.edit)
+                                  if (widget.note == null &&
+                                      _mode == EditorMode.edit)
                                     _buildNameField(context, isSaving),
                                   // Editor/Preview
                                   Expanded(
                                     child: AnimatedSwitcher(
-                                      duration: const Duration(milliseconds: 200),
+                                      duration:
+                                          const Duration(milliseconds: 200),
                                       child: _mode == EditorMode.view
                                           ? _buildPreviewMode()
                                           : _buildEditMode(isSaving),
@@ -859,7 +881,8 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                           fontSize: 11,
                         ),
                   ),
-                if (widget.note == null && ref.watch(notesProvider).currentPath.isNotEmpty)
+                if (widget.note == null &&
+                    ref.watch(notesProvider).currentPath.isNotEmpty)
                   Text(
                     ref.watch(notesProvider).currentPath,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
@@ -895,7 +918,10 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
               color: Theme.of(context).colorScheme.surface,
               borderRadius: BorderRadius.circular(AppTheme.radiusSm),
               border: Border.all(
-                color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
+                color: Theme.of(context)
+                    .colorScheme
+                    .outline
+                    .withValues(alpha: 0.3),
               ),
             ),
             child: Row(
@@ -932,7 +958,10 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                     _hasChanges ? Icons.save_outlined : Icons.check_rounded,
                     color: _mode == EditorMode.edit && _hasChanges
                         ? Theme.of(context).colorScheme.onSurface
-                        : Theme.of(context).colorScheme.tertiary.withValues(alpha: 0.5),
+                        : Theme.of(context)
+                            .colorScheme
+                            .tertiary
+                            .withValues(alpha: 0.5),
                   ),
             onPressed: _mode == EditorMode.edit && _hasChanges && !isSaving
                 ? _saveNote
@@ -971,7 +1000,8 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
 
   Widget _buildNameField(BuildContext context, bool isSaving) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(AppTheme.md, AppTheme.md, AppTheme.md, 0),
+      padding:
+          const EdgeInsets.fromLTRB(AppTheme.md, AppTheme.md, AppTheme.md, 0),
       child: TextField(
         controller: _nameController,
         enabled: !isSaving,
@@ -985,7 +1015,8 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
           hintStyle: GoogleFonts.playfairDisplay(
             fontSize: 24,
             fontWeight: FontWeight.w600,
-            color: Theme.of(context).colorScheme.tertiary.withValues(alpha: 0.5),
+            color:
+                Theme.of(context).colorScheme.tertiary.withValues(alpha: 0.5),
           ).copyWith(fontFamilyFallback: _fontFallback),
           border: InputBorder.none,
           enabledBorder: InputBorder.none,
@@ -998,9 +1029,10 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   }
 
   Widget _buildPreviewMode() {
-    final previewData = _normalizeMarkdownForPreview(_contentController.text.isEmpty
-        ? '_Start writing to see preview..._'
-        : _contentController.text);
+    final previewData = _normalizeMarkdownForPreview(
+        _contentController.text.isEmpty
+            ? '_Start writing to see preview..._'
+            : _contentController.text);
 
     return Markdown(
       key: const ValueKey('preview'),
@@ -1054,13 +1086,15 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
           fontSize: 16,
           color: Theme.of(context).colorScheme.primary,
           decoration: TextDecoration.underline,
-          decorationColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.4),
+          decorationColor:
+              Theme.of(context).colorScheme.primary.withValues(alpha: 0.4),
         ).copyWith(fontFamilyFallback: _fontFallback),
         // Code
         code: GoogleFonts.jetBrainsMono(
           fontSize: 14,
           color: Theme.of(context).colorScheme.primary,
-          backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.08),
+          backgroundColor:
+              Theme.of(context).colorScheme.primary.withValues(alpha: 0.08),
         ).copyWith(fontFamilyFallback: _fontFallback),
         codeblockDecoration: BoxDecoration(
           color: const Color(0xFFF8F6F4),
@@ -1096,7 +1130,8 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
         horizontalRuleDecoration: BoxDecoration(
           border: Border(
             top: BorderSide(
-              color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.5),
+              color:
+                  Theme.of(context).colorScheme.outline.withValues(alpha: 0.5),
               width: 1,
             ),
           ),
@@ -1116,7 +1151,8 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
           width: 1,
         ),
         tableHeadAlign: TextAlign.left,
-        tableCellsPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        tableCellsPadding:
+            const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         // Emphasis
         em: GoogleFonts.plusJakartaSans(
           fontSize: 16,
@@ -1165,12 +1201,16 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                 hintStyle: GoogleFonts.jetBrainsMono(
                   fontSize: 14,
                   height: 1.7,
-                  color: Theme.of(context).colorScheme.tertiary.withValues(alpha: 0.4),
+                  color: Theme.of(context)
+                      .colorScheme
+                      .tertiary
+                      .withValues(alpha: 0.4),
                 ).copyWith(fontFamilyFallback: _fontFallback),
                 border: InputBorder.none,
                 enabledBorder: InputBorder.none,
                 focusedBorder: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(vertical: AppTheme.md),
+                contentPadding:
+                    const EdgeInsets.symmetric(vertical: AppTheme.md),
                 filled: false,
               ),
               cursorColor: Theme.of(context).colorScheme.primary,
@@ -1192,7 +1232,10 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(AppTheme.radiusMd),
                   border: Border.all(
-                    color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.25),
+                    color: Theme.of(context)
+                        .colorScheme
+                        .outline
+                        .withValues(alpha: 0.25),
                   ),
                 ),
                 child: ListView.separated(
@@ -1200,12 +1243,16 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                   itemCount: _wikiSuggestions.length,
                   separatorBuilder: (_, __) => Divider(
                     height: 1,
-                    color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.15),
+                    color: Theme.of(context)
+                        .colorScheme
+                        .outline
+                        .withValues(alpha: 0.15),
                   ),
                   itemBuilder: (context, index) {
                     final suggestion = _wikiSuggestions[index];
                     final displayTarget = suggestion.path.endsWith('.md')
-                        ? suggestion.path.substring(0, suggestion.path.length - 3)
+                        ? suggestion.path
+                            .substring(0, suggestion.path.length - 3)
                         : suggestion.path;
 
                     return ListTile(
@@ -1240,7 +1287,8 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     final colorScheme = Theme.of(context).colorScheme;
 
     return Container(
-      margin: const EdgeInsets.fromLTRB(AppTheme.md, AppTheme.sm, AppTheme.md, 0),
+      margin:
+          const EdgeInsets.fromLTRB(AppTheme.md, AppTheme.sm, AppTheme.md, 0),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
       decoration: BoxDecoration(
         color: colorScheme.surface,

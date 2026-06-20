@@ -80,6 +80,7 @@ class _NoteCardState extends State<NoteCard>
     final colorScheme = Theme.of(context).colorScheme;
     final isDirectory = widget.note.isDirectory;
     final isAudio = widget.note.isAudio;
+    final isPdf = widget.note.isPdf;
 
     return FadeTransition(
       opacity: _fadeAnimation,
@@ -112,7 +113,8 @@ class _NoteCardState extends State<NoteCard>
                       boxShadow: _isHovered
                           ? [
                               BoxShadow(
-                                color: colorScheme.shadow.withValues(alpha: 0.08),
+                                color:
+                                    colorScheme.shadow.withValues(alpha: 0.08),
                                 blurRadius: 16,
                                 offset: const Offset(0, 6),
                               ),
@@ -126,8 +128,7 @@ class _NoteCardState extends State<NoteCard>
                           height: 42,
                           decoration: BoxDecoration(
                             color: colorScheme.primary.withValues(
-                              alpha:
-                              isDirectory ? 0.12 : 0.08,
+                              alpha: isDirectory ? 0.12 : 0.08,
                             ),
                             borderRadius: BorderRadius.circular(12),
                           ),
@@ -136,7 +137,9 @@ class _NoteCardState extends State<NoteCard>
                                 ? Icons.folder_open_rounded
                                 : isAudio
                                     ? Icons.graphic_eq_rounded
-                                    : Icons.description_outlined,
+                                    : isPdf
+                                        ? Icons.picture_as_pdf_rounded
+                                        : Icons.description_outlined,
                             color: colorScheme.primary,
                           ),
                         ),
@@ -159,7 +162,8 @@ class _NoteCardState extends State<NoteCard>
                                     child: Text(
                                       isDirectory
                                           ? widget.note.name
-                                          : widget.formatFileName(widget.note.name),
+                                          : widget
+                                              .formatFileName(widget.note.name),
                                       style: Theme.of(context)
                                           .textTheme
                                           .titleSmall
@@ -180,9 +184,11 @@ class _NoteCardState extends State<NoteCard>
                                       ),
                                       decoration: BoxDecoration(
                                         color: colorScheme.surface,
-                                        borderRadius: BorderRadius.circular(999),
+                                        borderRadius:
+                                            BorderRadius.circular(999),
                                         border: Border.all(
-                                          color: colorScheme.outline.withValues(alpha: 0.18),
+                                          color: colorScheme.outline
+                                              .withValues(alpha: 0.18),
                                         ),
                                       ),
                                       child: Text(
@@ -192,7 +198,8 @@ class _NoteCardState extends State<NoteCard>
                                           fontWeight: FontWeight.w700,
                                           color: colorScheme.primary,
                                         ).copyWith(
-                                          fontFamilyFallback: notesListFontFallback,
+                                          fontFamilyFallback:
+                                              notesListFontFallback,
                                         ),
                                       ),
                                     ),
@@ -201,7 +208,10 @@ class _NoteCardState extends State<NoteCard>
                               const SizedBox(height: 4),
                               Text(
                                 widget.note.path,
-                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodySmall
+                                    ?.copyWith(
                                       color: colorScheme.tertiary,
                                     ),
                                 maxLines: 1,
@@ -211,8 +221,12 @@ class _NoteCardState extends State<NoteCard>
                                 const SizedBox(height: 8),
                                 Text(
                                   widget.searchMetadata!.snippet!,
-                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                        color: colorScheme.onSurface.withValues(alpha: 0.72),
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .bodySmall
+                                      ?.copyWith(
+                                        color: colorScheme.onSurface
+                                            .withValues(alpha: 0.72),
                                       ),
                                   maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
@@ -323,7 +337,8 @@ class PathBar extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(AppTheme.md, AppTheme.sm, AppTheme.md, 0),
+      padding:
+          const EdgeInsets.fromLTRB(AppTheme.md, AppTheme.sm, AppTheme.md, 0),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
@@ -467,13 +482,16 @@ class _TreeToggleChipState extends State<_TreeToggleChip> {
                     child: AnimatedAlign(
                       duration: const Duration(milliseconds: 180),
                       curve: Curves.easeOutCubic,
-                      alignment:
-                          enabled ? Alignment.centerRight : Alignment.centerLeft,
+                      alignment: enabled
+                          ? Alignment.centerRight
+                          : Alignment.centerLeft,
                       child: Container(
                         width: 14,
                         height: 14,
                         decoration: BoxDecoration(
-                          color: enabled ? colorScheme.primary : colorScheme.onSurface,
+                          color: enabled
+                              ? colorScheme.primary
+                              : colorScheme.onSurface,
                           borderRadius: BorderRadius.circular(999),
                         ),
                       ),
@@ -555,7 +573,8 @@ class TreeNodeTile extends StatelessWidget {
                       width: 28,
                       child: isDirectory
                           ? IconButton(
-                              onPressed: () => onToggleExpansion(entry.note.path),
+                              onPressed: () =>
+                                  onToggleExpansion(entry.note.path),
                               icon: AnimatedRotation(
                                 turns: isExpanded ? 0.25 : 0,
                                 duration: const Duration(milliseconds: 180),
@@ -589,7 +608,9 @@ class TreeNodeTile extends StatelessWidget {
                             ? Icons.folder_open_rounded
                             : entry.note.isAudio
                                 ? Icons.graphic_eq_rounded
-                                : Icons.description_outlined,
+                                : entry.note.isPdf
+                                    ? Icons.picture_as_pdf_rounded
+                                    : Icons.description_outlined,
                         size: 18,
                         color: colorScheme.primary,
                       ),
@@ -608,9 +629,16 @@ class TreeNodeTile extends StatelessWidget {
                           ],
                           Expanded(
                             child: Text(
-                              isDirectory ? entry.note.name : formatFileName(entry.note.name),
-                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                    fontWeight: isDirectory ? FontWeight.w700 : FontWeight.w500,
+                              isDirectory
+                                  ? entry.note.name
+                                  : formatFileName(entry.note.name),
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodyMedium
+                                  ?.copyWith(
+                                    fontWeight: isDirectory
+                                        ? FontWeight.w700
+                                        : FontWeight.w500,
                                   ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
@@ -621,7 +649,8 @@ class TreeNodeTile extends StatelessWidget {
                     ),
                     if (!isDirectory)
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 3),
                         decoration: BoxDecoration(
                           color: colorScheme.surface,
                           borderRadius: BorderRadius.circular(999),
@@ -751,7 +780,8 @@ class QuickAccessSection extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(AppTheme.md, AppTheme.md, AppTheme.md, 0),
+      padding:
+          const EdgeInsets.fromLTRB(AppTheme.md, AppTheme.md, AppTheme.md, 0),
       child: Container(
         padding: const EdgeInsets.all(AppTheme.md),
         decoration: BoxDecoration(
@@ -778,16 +808,20 @@ class QuickAccessSection extends StatelessWidget {
                           const SizedBox(width: 8),
                           Text(
                             title,
-                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleMedium
+                                ?.copyWith(
                                   fontWeight: FontWeight.w700,
                                 ),
                           ),
                           const SizedBox(width: 8),
                           Text(
                             '(${entries.length})',
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                  color: colorScheme.tertiary,
-                                ),
+                            style:
+                                Theme.of(context).textTheme.bodySmall?.copyWith(
+                                      color: colorScheme.tertiary,
+                                    ),
                           ),
                         ],
                       ),
@@ -797,7 +831,8 @@ class QuickAccessSection extends StatelessWidget {
                 if (onToggleCollapsed != null)
                   IconButton(
                     onPressed: onToggleCollapsed,
-                    tooltip: isCollapsed ? 'Expand favorites' : 'Collapse favorites',
+                    tooltip:
+                        isCollapsed ? 'Expand favorites' : 'Collapse favorites',
                     icon: AnimatedRotation(
                       turns: isCollapsed ? 0 : 0.5,
                       duration: const Duration(milliseconds: 180),
@@ -881,7 +916,9 @@ class _QuickAccessEntryTile extends StatelessWidget {
                   ? Icons.folder_open_rounded
                   : note.isAudio
                       ? Icons.graphic_eq_rounded
-                      : Icons.description_outlined,
+                      : note.isPdf
+                          ? Icons.picture_as_pdf_rounded
+                          : Icons.description_outlined,
               size: 18,
               color: colorScheme.primary,
             ),
@@ -893,17 +930,21 @@ class _QuickAccessEntryTile extends StatelessWidget {
                   Row(
                     children: [
                       if (isFavorite) ...[
-                        const Icon(Icons.star_rounded, size: 14, color: Color(0xFFC99A1A)),
+                        const Icon(Icons.star_rounded,
+                            size: 14, color: Color(0xFFC99A1A)),
                         const SizedBox(width: 4),
                       ],
                       Expanded(
                         child: Text(
-                          note.isDirectory ? note.name : formatFileName(note.name),
+                          note.isDirectory
+                              ? note.name
+                              : formatFileName(note.name),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                fontWeight: FontWeight.w600,
-                              ),
+                          style:
+                              Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                  ),
                         ),
                       ),
                     ],
@@ -941,7 +982,9 @@ class _QuickAccessEntryTile extends StatelessWidget {
                 ),
                 PopupMenuItem(
                   value: EntryAction.toggleFavorite,
-                  child: Text(isFavorite ? 'Remove from favorites' : 'Add to favorites'),
+                  child: Text(isFavorite
+                      ? 'Remove from favorites'
+                      : 'Add to favorites'),
                 ),
                 PopupMenuItem(
                   value: EntryAction.delete,
@@ -1087,7 +1130,8 @@ class _CreateFolderDialogState extends State<CreateFolderDialog> {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+              color:
+                  Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Icon(
@@ -1227,7 +1271,8 @@ class _RenameEntryDialogState extends State<RenameEntryDialog> {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+              color:
+                  Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Icon(

@@ -49,6 +49,8 @@ class Note extends Equatable {
 
   bool get isAudio => isFile && name.toLowerCase().endsWith('.mp3');
 
+  bool get isPdf => isFile && name.toLowerCase().endsWith('.pdf');
+
   String get parentPath {
     final lastSlashIndex = path.lastIndexOf('/');
     if (lastSlashIndex == -1) {
@@ -58,5 +60,6 @@ class Note extends Equatable {
   }
 
   @override
-  List<Object?> get props => [name, path, sha, content, lastModified, type, downloadUrl];
+  List<Object?> get props =>
+      [name, path, sha, content, lastModified, type, downloadUrl];
 }

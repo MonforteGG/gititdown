@@ -9,6 +9,7 @@ import '../../presentation/providers/library_preferences_provider.dart';
 import '../../presentation/providers/notes_provider.dart';
 import '../../presentation/providers/search_provider.dart';
 import 'audio_player_screen.dart';
+import 'pdf_viewer_screen.dart';
 import '../widgets/github_footer.dart';
 import '../widgets/notebook_background.dart';
 import '../widgets/notes_list_components.dart';
@@ -70,7 +71,8 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
                 color: Colors.white.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(6),
               ),
-              child: const Icon(Icons.error_outline, color: Colors.white, size: 18),
+              child: const Icon(Icons.error_outline,
+                  color: Colors.white, size: 18),
             ),
             const SizedBox(width: 12),
             Expanded(child: Text(message)),
@@ -103,7 +105,9 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
     if (_showTreeView ||
         searchState.status != SearchStatus.initial ||
         searchState.query.trim().isNotEmpty) {
-      await ref.read(vaultSearchProvider.notifier).loadVaultEntries(force: true);
+      await ref
+          .read(vaultSearchProvider.notifier)
+          .loadVaultEntries(force: true);
     }
   }
 
@@ -200,6 +204,15 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
       return;
     }
 
+    if (note.isPdf) {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) => PdfViewerScreen(note: note),
+        ),
+      );
+      return;
+    }
+
     Navigator.of(context).push(
       PageRouteBuilder(
         pageBuilder: (context, animation, secondaryAnimation) =>
@@ -246,7 +259,8 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
 
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => DeleteNoteDialog(noteName: _formatFileName(note.name)),
+      builder: (context) =>
+          DeleteNoteDialog(noteName: _formatFileName(note.name)),
     );
 
     if (confirmed == true) {
@@ -255,14 +269,16 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
           .deleteNote(note.path, note.sha);
 
       if (!success && mounted) {
-        final error = ref.read(notesProvider).failure?.message ?? 'Failed to delete note';
+        final error =
+            ref.read(notesProvider).failure?.message ?? 'Failed to delete note';
         _showErrorSnackbar(error);
       }
     }
   }
 
   Future<void> _renameEntry(Note note) async {
-    final initialValue = note.isDirectory ? note.name : _formatFileName(note.name);
+    final initialValue =
+        note.isDirectory ? note.name : _formatFileName(note.name);
     final renamedValue = await showDialog<String>(
       context: context,
       builder: (context) => RenameEntryDialog(
@@ -282,20 +298,23 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
     }
 
     final normalizedValue = renamedValue.trim();
-    final targetName = note.isDirectory || note.isAudio
+    final targetName = note.isDirectory || !note.isMarkdown
         ? normalizedValue
         : '$normalizedValue.md';
 
-    final success = await ref.read(notesProvider.notifier).renameEntry(note, targetName);
+    final success =
+        await ref.read(notesProvider.notifier).renameEntry(note, targetName);
     if (!success && mounted) {
-      final error = ref.read(notesProvider).failure?.message ?? 'Failed to rename entry';
+      final error =
+          ref.read(notesProvider).failure?.message ?? 'Failed to rename entry';
       _showErrorSnackbar(error);
     }
   }
 
   Future<void> _toggleFavorite(Note note) async {
-    final isNowFavorite =
-        await ref.read(libraryPreferencesProvider.notifier).toggleFavorite(note.path);
+    final isNowFavorite = await ref
+        .read(libraryPreferencesProvider.notifier)
+        .toggleFavorite(note.path);
     if (!mounted) return;
     setState(() {
       if (isNowFavorite) {
@@ -322,6 +341,7 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
 
   String _fileBadgeLabel(Note note) {
     if (note.isAudio) return 'mp3';
+    if (note.isPdf) return 'pdf';
     if (note.isMarkdown) return 'md';
     return 'file';
   }
@@ -336,7 +356,9 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
     final currentPath = notesState.currentPath;
     final searchMetadata = searchState.searchMatchMetadata;
     final isTreeMode = !isSearching && currentPath.isEmpty && _showTreeView;
-    final noteByPath = {for (final entry in searchState.vaultEntries) entry.path: entry};
+    final noteByPath = {
+      for (final entry in searchState.vaultEntries) entry.path: entry
+    };
     final favoriteEntries = libraryPrefs.favorites
         .map((path) => noteByPath[path])
         .whereType<Note>()
@@ -361,12 +383,12 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
         children: [
           // Grid background
           Positioned.fill(
-              child: CustomPaint(
-                painter: GridPainter(
-                  color: AppTheme.inkBlack.withValues(alpha: 0.035),
-                  spacing: 32,
-                ),
+            child: CustomPaint(
+              painter: GridPainter(
+                color: AppTheme.inkBlack.withValues(alpha: 0.035),
+                spacing: 32,
               ),
+            ),
           ),
           // GitHub Footer
           const Positioned(
@@ -392,10 +414,13 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
                           currentPath: currentPath,
                           onGoRoot: currentPath.isEmpty
                               ? null
-                              : () => ref.read(notesProvider.notifier).navigateToRoot(),
+                              : () => ref
+                                  .read(notesProvider.notifier)
+                                  .navigateToRoot(),
                           onGoUp: currentPath.isEmpty
                               ? null
-                              : () => ref.read(notesProvider.notifier).navigateUp(),
+                              : () =>
+                                  ref.read(notesProvider.notifier).navigateUp(),
                           showTreeToggle: currentPath.isEmpty && !isSearching,
                           isTreeViewEnabled: isTreeMode,
                           onTreeViewChanged: _toggleTreeView,
@@ -414,14 +439,17 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
                                 isCollapsed: !_showFavoritesSection,
                                 onToggleCollapsed: () {
                                   setState(() {
-                                    _showFavoritesSection = !_showFavoritesSection;
+                                    _showFavoritesSection =
+                                        !_showFavoritesSection;
                                   });
                                 },
                                 onOpen: _openNote,
                                 onRename: _renameEntry,
                                 onDelete: _deleteNote,
                                 onToggleFavorite: _toggleFavorite,
-                                isFavorite: ref.read(libraryPreferencesProvider.notifier).isFavorite,
+                                isFavorite: ref
+                                    .read(libraryPreferencesProvider.notifier)
+                                    .isFavorite,
                                 formatFileName: _formatFileName,
                               ),
                             ],
@@ -429,10 +457,13 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
                         ),
                       SliverToBoxAdapter(
                         child: isLoading &&
-                                (isTreeMode ? searchState.vaultEntries.isEmpty : notes.isEmpty)
+                                (isTreeMode
+                                    ? searchState.vaultEntries.isEmpty
+                                    : notes.isEmpty)
                             ? _buildLoadingState()
                             : !isTreeMode && notes.isEmpty
-                                ? _buildEmptyState(context, currentPath, isSearching)
+                                ? _buildEmptyState(
+                                    context, currentPath, isSearching)
                                 : null,
                       ),
                       if (isTreeMode)
@@ -460,9 +491,11 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
                                   onToggleFavorite: () => _toggleFavorite(note),
                                   formatFileName: _formatFileName,
                                   fileBadgeLabel: _fileBadgeLabel(note),
-                                  searchMetadata:
-                                      isSearching ? searchMetadata[note.path] : null,
-                                  isFavorite: libraryPrefs.favorites.contains(note.path),
+                                  searchMetadata: isSearching
+                                      ? searchMetadata[note.path]
+                                      : null,
+                                  isFavorite: libraryPrefs.favorites
+                                      .contains(note.path),
                                 );
                               },
                               childCount: notes.length,
@@ -547,7 +580,8 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
     final isSearchLoading = searchState.status == SearchStatus.loading;
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(AppTheme.md, AppTheme.sm, AppTheme.md, 0),
+      padding:
+          const EdgeInsets.fromLTRB(AppTheme.md, AppTheme.sm, AppTheme.md, 0),
       child: TextField(
         controller: _searchController,
         onChanged: (value) {
@@ -644,7 +678,10 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
                 color: Theme.of(context).colorScheme.surface,
                 borderRadius: BorderRadius.circular(24),
                 border: Border.all(
-                  color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.5),
+                  color: Theme.of(context)
+                      .colorScheme
+                      .outline
+                      .withValues(alpha: 0.5),
                   width: 2,
                   strokeAlign: BorderSide.strokeAlignOutside,
                 ),
@@ -655,7 +692,10 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
                   Icon(
                     Icons.description_outlined,
                     size: 40,
-                    color: Theme.of(context).colorScheme.tertiary.withValues(alpha: 0.5),
+                    color: Theme.of(context)
+                        .colorScheme
+                        .tertiary
+                        .withValues(alpha: 0.5),
                   ),
                   Positioned(
                     bottom: 20,
@@ -663,7 +703,10 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
                     child: Container(
                       padding: const EdgeInsets.all(4),
                       decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                        color: Theme.of(context)
+                            .colorScheme
+                            .primary
+                            .withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Icon(
@@ -719,14 +762,19 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
     final tree = _buildTreeEntries(entries);
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(AppTheme.md, AppTheme.sm, AppTheme.md, AppTheme.xxl),
+      padding: const EdgeInsets.fromLTRB(
+          AppTheme.md, AppTheme.sm, AppTheme.md, AppTheme.xxl),
       child: Container(
         padding: const EdgeInsets.all(AppTheme.sm),
         decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.28),
+          color: Theme.of(context)
+              .colorScheme
+              .surfaceContainerHighest
+              .withValues(alpha: 0.28),
           borderRadius: BorderRadius.circular(AppTheme.radiusLg),
           border: Border.all(
-            color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.22),
+            color:
+                Theme.of(context).colorScheme.outline.withValues(alpha: 0.22),
           ),
         ),
         child: Column(
@@ -777,7 +825,9 @@ class _NotesListScreenState extends ConsumerState<NotesListScreen>
           .map(
             (entry) => TreeEntry(
               note: entry,
-              children: entry.isDirectory ? buildLevel(entry.path) : const <TreeEntry>[],
+              children: entry.isDirectory
+                  ? buildLevel(entry.path)
+                  : const <TreeEntry>[],
             ),
           )
           .toList();
