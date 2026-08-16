@@ -51,6 +51,18 @@ void main() {
       expect(parsed.startAt, const Duration(hours: 1, minutes: 15));
     });
 
+    test('parses 63:31 as 63 minutes, not as an hour timestamp', () {
+      final parsed = WikiLinks.parseTarget(
+        '2026-07-06 - Reunion Revision propuesta DeCA - Proyecto DeCA.mp3#63:31',
+      );
+      expect(
+        parsed.path,
+        '2026-07-06 - Reunion Revision propuesta DeCA - Proyecto DeCA.mp3',
+      );
+      expect(parsed.startAt, const Duration(minutes: 63, seconds: 31));
+      expect(parsed.startAt, isNot(const Duration(hours: 6, minutes: 3, seconds: 31)));
+    });
+
     test('parses 1h2m3s tokens', () {
       final parsed = WikiLinks.parseTarget('audio.mp3#t=1h2m3s');
       expect(parsed.startAt, const Duration(hours: 1, minutes: 2, seconds: 3));
@@ -95,6 +107,33 @@ void main() {
 
       expect(markdown, contains('[decision]'));
       expect(markdown, contains('target=audio.mp3'));
+    });
+
+    test('round-trips a spaced filename with a 63:31 timestamp', () {
+      const content =
+          '[[2026-07-06 - Reunion Revision propuesta DeCA - Proyecto DeCA.mp3#63:31|A día de hoy no se sube a ninguno]]';
+      final match = WikiLinks.pattern.firstMatch(content);
+      expect(match, isNotNull);
+      expect(
+        match!.group(1),
+        '2026-07-06 - Reunion Revision propuesta DeCA - Proyecto DeCA.mp3#63:31',
+      );
+      expect(match.group(2), 'A día de hoy no se sube a ninguno');
+
+      final markdown = WikiLinks.toPreviewMarkdown(
+        rawTarget: match.group(1)!,
+        alias: match.group(2),
+      );
+      expect(markdown, contains('[A día de hoy no se sube a ninguno]'));
+      expect(markdown, isNot(contains('+')));
+
+      final href = RegExp(r'\(<([^>]+)>\)').firstMatch(markdown)?.group(1);
+      final restored = WikiLinks.targetFromHref(href!);
+      expect(restored, match.group(1));
+      expect(
+        WikiLinks.parseTarget(restored!).startAt,
+        const Duration(minutes: 63, seconds: 31),
+      );
     });
 
     test('preview markdown href round-trips hour timestamps', () {

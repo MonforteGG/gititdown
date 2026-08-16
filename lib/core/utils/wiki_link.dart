@@ -83,10 +83,10 @@ class WikiLinks {
   }
 
   static Uri previewUri(String rawTarget) {
-    return Uri(
-      scheme: 'gititdown',
-      host: 'note',
-      queryParameters: {'target': rawTarget},
+    // encodeComponent keeps spaces as %20. queryParameters would use +,
+    // which some markdown/href paths treat as a literal plus.
+    return Uri.parse(
+      'gititdown://note?target=${Uri.encodeComponent(rawTarget)}',
     );
   }
 
