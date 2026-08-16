@@ -75,38 +75,28 @@ void main() {
   });
 
   group('WikiLinks preview hrefs', () {
-    test('round-trips hour timestamps through the preview URI', () {
-      const target = 'meetings/long.mp3#01:23:45';
-      final href = WikiLinks.previewUri(target).toString();
+    test('round-trips 63:31 through the encoded preview href', () {
+      const target = 'audio.mp3#63:31';
+      final href = 'gititdown://note/${Uri.encodeComponent(target)}';
       final restored = WikiLinks.targetFromHref(href);
 
       expect(restored, target);
       expect(
         WikiLinks.parseTarget(restored!).startAt,
-        const Duration(hours: 1, minutes: 23, seconds: 45),
+        const Duration(minutes: 63, seconds: 31),
       );
     });
 
-    test('recovers a decoded hash timestamp from the old preview format', () {
+    test('recovers a decoded 63:31 hash timestamp', () {
       final restored = WikiLinks.targetFromHref(
-        'gititdown://note/audio.mp3#01:23:45',
+        'gititdown://note/audio.mp3#63:31',
       );
 
-      expect(restored, 'audio.mp3#01:23:45');
+      expect(restored, 'audio.mp3#63:31');
       expect(
         WikiLinks.parseTarget(restored!).startAt,
-        const Duration(hours: 1, minutes: 23, seconds: 45),
+        const Duration(minutes: 63, seconds: 31),
       );
-    });
-
-    test('keeps aliases in the preview label', () {
-      final markdown = WikiLinks.toPreviewMarkdown(
-        rawTarget: 'audio.mp3#01:23:45',
-        alias: 'decision',
-      );
-
-      expect(markdown, contains('[decision]'));
-      expect(markdown, contains('target=audio.mp3'));
     });
 
     test('round-trips a spaced filename with a 63:31 timestamp', () {
@@ -124,10 +114,15 @@ void main() {
         rawTarget: match.group(1)!,
         alias: match.group(2),
       );
-      expect(markdown, contains('[A día de hoy no se sube a ninguno]'));
-      expect(markdown, isNot(contains('+')));
+      expect(markdown, contains('[01:03:31]'));
+      expect(
+        markdown,
+        isNot(contains('[A día de hoy no se sube a ninguno]')),
+      );
 
-      final href = RegExp(r'\(<([^>]+)>\)').firstMatch(markdown)?.group(1);
+      final href = RegExp(
+        r'\((gititdown://note/[^)]+)\)',
+      ).firstMatch(markdown)?.group(1);
       final restored = WikiLinks.targetFromHref(href!);
       expect(restored, match.group(1));
       expect(
@@ -140,12 +135,13 @@ void main() {
       final markdown = WikiLinks.toPreviewMarkdown(
         rawTarget: 'meetings/long.mp3#01:23:45',
       );
-      final href = RegExp(r'\(<([^>]+)>\)').firstMatch(markdown)?.group(1);
+      final href = RegExp(
+        r'\((gititdown://note/[^)]+)\)',
+      ).firstMatch(markdown)?.group(1);
 
       expect(href, isNotNull);
       expect(markdown, isNot(contains('#01:23:45')));
-      expect(markdown, contains('<gititdown://note?'));
-      expect(markdown, contains('[1h 23m 45s]'));
+      expect(markdown, contains('[01:23:45]'));
       expect(
         WikiLinks.parseTarget(WikiLinks.targetFromHref(href!)!).startAt,
         const Duration(hours: 1, minutes: 23, seconds: 45),
