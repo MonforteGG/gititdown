@@ -54,10 +54,7 @@ class WikiLinks {
     return '$minutes:$seconds';
   }
 
-  static String toPreviewMarkdown({
-    required String rawTarget,
-    String? alias,
-  }) {
+  static String toPreviewMarkdown({required String rawTarget}) {
     final parsedTarget = parseTarget(rawTarget);
     final label = parsedTarget.startAt != null
         ? formatDuration(parsedTarget.startAt!)

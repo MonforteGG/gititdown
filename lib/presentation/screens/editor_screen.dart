@@ -530,8 +530,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
 
     return normalizedFrontmatter.replaceAllMapped(_wikiLinkPattern, (match) {
       final target = match.group(1)?.trim() ?? '';
-      final alias = match.group(2)?.trim();
-      return WikiLinks.toPreviewMarkdown(rawTarget: target, alias: alias);
+      return WikiLinks.toPreviewMarkdown(rawTarget: target);
     });
   }
 

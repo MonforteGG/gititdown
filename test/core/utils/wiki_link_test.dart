@@ -110,10 +110,7 @@ void main() {
       );
       expect(match.group(2), 'A día de hoy no se sube a ninguno');
 
-      final markdown = WikiLinks.toPreviewMarkdown(
-        rawTarget: match.group(1)!,
-        alias: match.group(2),
-      );
+      final markdown = WikiLinks.toPreviewMarkdown(rawTarget: match.group(1)!);
       expect(markdown, contains('[01:03:31]'));
       expect(
         markdown,
