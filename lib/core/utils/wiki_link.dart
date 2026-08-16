@@ -54,40 +54,16 @@ class WikiLinks {
     return '$minutes:$seconds';
   }
 
-  static String formatPreviewLabel(Duration duration) {
-    if (duration.inHours <= 0) {
-      return formatDuration(duration);
-    }
-
-    final minutes = duration.inMinutes.remainder(60);
-    final seconds = duration.inSeconds.remainder(60);
-    final parts = <String>['${duration.inHours}h'];
-    if (minutes > 0) parts.add('${minutes}m');
-    if (seconds > 0) parts.add('${seconds}s');
-    return parts.join(' ');
-  }
-
   static String toPreviewMarkdown({
     required String rawTarget,
     String? alias,
   }) {
     final parsedTarget = parseTarget(rawTarget);
-    final trimmedAlias = alias?.trim();
-    final label = (trimmedAlias != null && trimmedAlias.isNotEmpty)
-        ? trimmedAlias
-        : parsedTarget.startAt != null
-            ? formatPreviewLabel(parsedTarget.startAt!)
-            : (parsedTarget.path.isNotEmpty ? parsedTarget.path : rawTarget);
-    final safeLabel = label.replaceAll(']', r'\]');
-    return '[$safeLabel](<${previewUri(rawTarget)}>)';
-  }
-
-  static Uri previewUri(String rawTarget) {
-    // encodeComponent keeps spaces as %20. queryParameters would use +,
-    // which some markdown/href paths treat as a literal plus.
-    return Uri.parse(
-      'gititdown://note?target=${Uri.encodeComponent(rawTarget)}',
-    );
+    final label = parsedTarget.startAt != null
+        ? formatDuration(parsedTarget.startAt!)
+        : rawTarget;
+    final encodedTarget = Uri.encodeComponent(rawTarget);
+    return '[$label](gititdown://note/$encodedTarget)';
   }
 
   static String? targetFromHref(String href) {
