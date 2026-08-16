@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../config/theme.dart';
+import '../../core/utils/wiki_link.dart';
 import '../../domain/entities/note.dart';
 import '../../domain/usecases/get_file.dart';
 import '../../domain/usecases/get_file_bytes.dart';
@@ -46,12 +47,7 @@ class AudioPlayerScreen extends ConsumerStatefulWidget {
 }
 
 class _AudioPlayerScreenState extends ConsumerState<AudioPlayerScreen> {
-  static final RegExp _wikiLinkPattern = RegExp(
-    r'\[\[([^\]|]+)(?:\|([^\]]+))?\]\]',
-  );
-  static final RegExp _timeStampPattern = RegExp(
-    r'^(?:(\d+):)?([0-5]?\d):([0-5]?\d)$',
-  );
+  static final RegExp _wikiLinkPattern = WikiLinks.pattern;
   final AudioPlayer _player = AudioPlayer();
   static const List<double> _playbackSpeeds = [1.0, 1.5, 2.0];
   StreamSubscription<Duration>? _positionSubscription;
@@ -235,7 +231,7 @@ class _AudioPlayerScreenState extends ConsumerState<AudioPlayerScreen> {
     for (final match in _wikiLinkPattern.allMatches(content)) {
       final rawTarget = match.group(1)?.trim() ?? '';
       final alias = match.group(2)?.trim();
-      final parsedTarget = _parseWikiLinkTarget(rawTarget);
+      final parsedTarget = WikiLinks.parseTarget(rawTarget);
       final timestamp = parsedTarget.startAt;
 
       if (timestamp == null ||
@@ -336,70 +332,6 @@ class _AudioPlayerScreenState extends ConsumerState<AudioPlayerScreen> {
         normalizedTarget == audioBaseName;
   }
 
-  ({String path, Duration? startAt}) _parseWikiLinkTarget(String rawTarget) {
-    final trimmed = rawTarget.trim();
-    if (trimmed.isEmpty) {
-      return (path: trimmed, startAt: null);
-    }
-
-    final queryIndex = trimmed.indexOf('?');
-    if (queryIndex != -1) {
-      final path = trimmed.substring(0, queryIndex);
-      final query = trimmed.substring(queryIndex + 1);
-      return (path: path, startAt: _parseTimestampQuery(query));
-    }
-
-    final hashIndex = trimmed.lastIndexOf('#');
-    if (hashIndex != -1) {
-      final path = trimmed.substring(0, hashIndex);
-      final fragment = trimmed.substring(hashIndex + 1);
-      return (path: path, startAt: _parseTimestampFragment(fragment));
-    }
-
-    return (path: trimmed, startAt: null);
-  }
-
-  Duration? _parseTimestampQuery(String query) {
-    for (final part in query.split('&')) {
-      final separatorIndex = part.indexOf('=');
-      if (separatorIndex == -1) continue;
-
-      final key = part.substring(0, separatorIndex).toLowerCase();
-      final value = part.substring(separatorIndex + 1);
-      if (key == 't' || key == 'time' || key == 'start') {
-        return _parseTimestampValue(value);
-      }
-    }
-    return null;
-  }
-
-  Duration? _parseTimestampFragment(String fragment) {
-    final normalized = fragment.toLowerCase();
-    if (normalized.startsWith('t=')) {
-      return _parseTimestampValue(fragment.substring(2));
-    }
-    return _parseTimestampValue(fragment);
-  }
-
-  Duration? _parseTimestampValue(String rawValue) {
-    final value = rawValue.trim();
-    if (value.isEmpty) return null;
-
-    final asSeconds = int.tryParse(value);
-    if (asSeconds != null) {
-      return Duration(seconds: asSeconds);
-    }
-
-    final match = _timeStampPattern.firstMatch(value);
-    if (match == null) return null;
-
-    final hours = int.tryParse(match.group(1) ?? '0') ?? 0;
-    final minutes = int.tryParse(match.group(2) ?? '0') ?? 0;
-    final seconds = int.tryParse(match.group(3) ?? '0') ?? 0;
-
-    return Duration(hours: hours, minutes: minutes, seconds: seconds);
-  }
-
   String _stripExtension(String name) {
     final lastDotIndex = name.lastIndexOf('.');
     if (lastDotIndex == -1) return name;
@@ -461,15 +393,7 @@ class _AudioPlayerScreenState extends ConsumerState<AudioPlayerScreen> {
   }
 
   String _formatDuration(Duration duration) {
-    final minutes = duration.inMinutes.remainder(60).toString().padLeft(2, '0');
-    final seconds = duration.inSeconds.remainder(60).toString().padLeft(2, '0');
-    final hours = duration.inHours;
-
-    if (hours > 0) {
-      return '${hours.toString().padLeft(2, '0')}:$minutes:$seconds';
-    }
-
-    return '$minutes:$seconds';
+    return WikiLinks.formatDuration(duration);
   }
 
   String _formatByteCount(int bytes) {
